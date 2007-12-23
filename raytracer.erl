@@ -39,7 +39,7 @@ main_loop(Screen) ->
 	{quit} ->
 	    done;
 	_Else ->
-	    putRandomPixel(Screen),
+	    putRandomPixels(Screen),
 	    sdl_video:flip(Screen),
 	    %timer:sleep(1),
 	    main_loop(Screen)
@@ -53,8 +53,10 @@ putPixel(Surface, X, Y, {Red, Green, Blue}) ->
 		       #sdl_rect{x = X, y = Y, w = 1, h = 1},
 		       sdl_video:mapRGB(Surface, Red, Green, Blue)).
 
-putRandomPixel(Surface) ->
-    putPixel(Surface,
-	     random:uniform(Surface#sdl_surface.w)-1,
-	     random:uniform(Surface#sdl_surface.h)-1,
+putRandomPixels(Surface) ->
+    putRandomPixelAt(Surface, random:uniform(Surface#sdl_surface.w)-1,
+		     random:uniform(Surface#sdl_surface.h)-1).
+
+putRandomPixelAt(Surface, X, Y) ->
+    putPixel(Surface, X, Y,
 	     {random:uniform(256)-1, random:uniform(256)-1, random:uniform(256)-1}).
