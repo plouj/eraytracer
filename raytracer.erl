@@ -28,8 +28,8 @@ go(Config) ->
 %						  #sdl_rect{x = 0, y = 0,
 %							   w = Screen#sdl_surface.w,
 %							   h = Screen#sdl_surface.h})]),
+    fill_screen_randomly(Screen),
     main_loop(Screen),
-    timer:sleep(1000),
     sdl:quit().
 
 main_loop(Screen) ->
@@ -39,14 +39,31 @@ main_loop(Screen) ->
 	{quit} ->
 	    done;
 	_Else ->
-	    putRandomPixels(Screen),
-	    sdl_video:flip(Screen),
-	    %timer:sleep(1),
+	    %fill_screen_randomly(Screen),
+	    %putRandomPixels(Screen),
+	    %sdl_video:flip(Screen),
+	    timer:sleep(10),
 	    main_loop(Screen)
     end.
+fill_screen_randomly(Screen) ->
+    fill_screen_rows_randomly(Screen, Screen#sdl_surface.h).
+
+fill_screen_rows_randomly(_Screen, 0) ->
+    done;
+fill_screen_rows_randomly(Screen, Rows) ->
+    fill_screen_columns_randomly(Screen, Rows, Screen#sdl_surface.w),
+    fill_screen_rows_randomly(Screen, Rows - 1).
+
+fill_screen_columns_randomly(_Screen, _Rows, 0) ->
+    done;
+fill_screen_columns_randomly(Screen, Rows, Columns) ->
+    putRandomPixelAt(Screen, Columns - 1, Rows - 1),
+    sdl_video:flip(Screen),
+    fill_screen_columns_randomly(Screen, Rows, Columns - 1).
+
 
 putPixel(Surface, X, Y, {Red, Green, Blue}) ->
-    io:format("putting pixel ~w at ~w,~w~n",[{Red, Green, Blue}, X, Y]), 
+    %io:format("putting pixel ~w at ~w,~w~n",[{Red, Green, Blue}, X, Y]), 
     %PixelFormat = sdl_video:getPixelFormat(Surface),
     %OriginalPixels = sdl_video:getPixels(Surface),
     sdl_video:fillRect(Surface,
