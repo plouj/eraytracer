@@ -3,8 +3,8 @@
 -include_lib("esdl/include/sdl_video.hrl").
 -include_lib("esdl/include/sdl_events.hrl").
 %-include_lib("/home/plouj/programming/sdl_util.hrl").
--export([go/0]).
-
+%-export([go/0]).
+-compile(export_all).
 go() ->
     go([]).
 go(Config) ->
@@ -28,7 +28,8 @@ go(Config) ->
 %						  #sdl_rect{x = 0, y = 0,
 %							   w = Screen#sdl_surface.w,
 %							   h = Screen#sdl_surface.h})]),
-    fill_screen_randomly(Screen),
+%    fill_screen_randomly(Screen),
+    sdl_video:blitSurface(trace_image(Screen), null, Screen, null),
     main_loop(Screen),
     sdl:quit().
 
@@ -45,6 +46,44 @@ main_loop(Screen) ->
 	    timer:sleep(10),
 	    main_loop(Screen)
     end.
+
+trace_image(Surface) ->
+    PixelFormat = sdl_video:getPixelFormat(Surface),
+    sdl_video:createRGBsurfaceFrom(raytrace(Surface#sdl_surface.w, Surface#sdl_surface.h, scene()),
+			 Surface#sdl_surface.w,
+			 Surface#sdl_surface.h,
+			 PixelFormat#sdl_pixelformat.bitsPerPixel,
+			 Surface#sdl_surface.pitch,
+			 PixelFormat#sdl_pixelformat.rmask,
+			 PixelFormat#sdl_pixelformat.gmask,
+			 PixelFormat#sdl_pixelformat.bmask,
+			 PixelFormat#sdl_pixelformat.amask).
+
+raytrace(W, H, Scene) ->
+    pixel_binary_from_list(
+      lists:map(
+	fun(ScreenCoordinates) -> trace_ray_from_pixel(Scene, ScreenCoordinates) end,
+		     pixel_coordinates(W, H))).
+
+% convert a list of pixels into a binary suitable for creating an SDL surface
+pixel_binary_from_list(PixelList) ->
+    false.
+
+trace_ray_from_pixel(Scene, {X, Y}) ->
+    false.
+
+pixel_coordinates(Width, Height) when Width > 0, Height > 0 ->
+    lists:flatmap(fun(Y) ->
+			  lists:map(fun(X) ->
+					    {X, Y} end,
+				    lists:seq(0, Width - 1)) end,
+		  lists:seq(0, Height - 1)).
+
+% returns a list of objects in the scene
+scene() ->
+    [].
+
+
 fill_screen_randomly(Screen) ->
     fill_screen_rows_randomly(Screen, Screen#sdl_surface.h).
 
