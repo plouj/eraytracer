@@ -1,6 +1,12 @@
 -module(raytracer).
 -compile(export_all).
 
+-record(vector, {x, y, z}).
+-record(ray, {start, direction}).
+-record(camera, {location, rotation, fov}).
+-record(sphere, {radius, location}).
+-record(axis_aligned_cube, {size, location}).
+
 raytraced_pixel_list(0, 0, _) ->
     done;
 raytraced_pixel_list(Width, Height, Scene) when Width > 0, Height > 0 ->
@@ -17,7 +23,12 @@ trace_ray_from_pixel({X, Y}, _Scene) ->
 
 % returns a list of objects in the scene
 scene() ->
-    [].
+    [#camera{location=#vector{x=0, y=0, z=0},
+	     rotation=#vector{x=1, y=0, z=0},
+	     fov=90},
+     #sphere{radius=2, location=#vector{x=5, y=0, z=0}}
+    ].
+
 
 write_pixels_to_ppm(Width, Height, Pixels, Filename) ->
     case file:open(Filename, write) of
