@@ -30,6 +30,9 @@ trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
 nearest_object_intersecting_ray(_Ray, _Scene) ->
     none.
 
+focal_length(Angle, Dimension) ->
+    Dimension/(2*math:tan(Angle*(math:pi()/180)/2)).
+
 point_on_screen(_X, _Y, _Camera) ->
     none.
 
@@ -45,12 +48,12 @@ vectors_equal(V1, V2) ->
 	and (V1#vector.y == V2#vector.y)
 	and (V1#vector.z == V2#vector.z).
 
-add_vectors(V1, V2) ->
+vector_add(V1, V2) ->
     #vector{x = V1#vector.x + V2#vector.x,
 	    y = V1#vector.y + V2#vector.y,
 	    z = V1#vector.z + V2#vector.z}.
 
-subtract_vectors(V1, V2) ->
+vector_sub(V1, V2) ->
         #vector{x = V1#vector.x - V2#vector.x,
 	    y = V1#vector.y - V2#vector.y,
 	    z = V1#vector.z - V2#vector.z}.
@@ -58,7 +61,7 @@ subtract_vectors(V1, V2) ->
 vector_square_mag(#vector{x=X, y=Y, z=Z}) ->
     X*X + Y*Y + Z*Z.
 
-vector_magnitude(V) ->
+vector_mag(V) ->
     math:sqrt(vector_square_mag(V)).
 
 vector_scalar_mult(#vector{x=X, y=Y, z=Z}, Scalar) ->
@@ -73,11 +76,11 @@ vector_cross_product(#vector{x=A1, y=A2, z=A3}, #vector{x=B1, y=B2, z=B3}) ->
 	    z = A1*B2 - A2*B1}.
 
 vector_normalize(V) ->
-    Mag = vector_magnitude(V),
+    Mag = vector_mag(V),
     if Mag == 0 ->
 	    #vector{x=0, y=0, z=0};
        true ->
-	    vector_scalar_mult(V, 1/vector_magnitude(V))
+	    vector_scalar_mult(V, 1/vector_mag(V))
     end.
 
 vector_neg(#vector{x=X, y=Y, z=Z}) ->
@@ -158,7 +161,7 @@ run_tests() ->
 	     fun vector_addition_test/0,
 	     fun vector_subtraction_test/0,
 	     fun vector_square_mag_test/0,
-	     fun vector_magnitude_test/0,
+	     fun vector_mag_test/0,
 	     fun vector_scalar_multiplication_test/0,
 	     fun vector_dot_product_test/0,
 	     fun vector_cross_product_test/0,
@@ -167,7 +170,8 @@ run_tests() ->
 	     fun ray_through_pixel_test/0,
 	     fun ray_shooting_test/0,
 	     fun point_on_screen_test/0,
-	     fun nearest_object_intersecting_ray_test/0
+	     fun nearest_object_intersecting_ray_test/0,
+	     fun focal_length_test/0
 	    ],
     run_tests(Tests, 1, true).
 
@@ -205,7 +209,7 @@ vector_equality_test() ->
     
 vector_addition_test() ->
     io:format("vector addition", []),
-    Vector0 = add_vectors(
+    Vector0 = vector_add(
 		#vector{x=3, y=7, z=-3},
 		#vector{x=0, y=-24, z=123}),	       
     Subtest1 = (Vector0#vector.x == 3)
@@ -213,13 +217,13 @@ vector_addition_test() ->
 	and (Vector0#vector.z == 120),
 
     Vector1 = #vector{x=5, y=0, z=984},
-    Vector2 = add_vectors(Vector1, Vector1),
+    Vector2 = vector_add(Vector1, Vector1),
     Subtest2 = (Vector2#vector.x == Vector1#vector.x*2)
 	and (Vector2#vector.y == Vector1#vector.y*2)
 	and (Vector2#vector.z == Vector1#vector.z*2),
 
     Vector3 = #vector{x=908, y=-098, z=234},
-    Vector4 = add_vectors(Vector3, #vector{x=0, y=0, z=0}),
+    Vector4 = vector_add(Vector3, #vector{x=0, y=0, z=0}),
     Subtest3 = vectors_equal(Vector3, Vector4),
 
     Subtest1 and Subtest2 and Subtest3.
@@ -231,13 +235,13 @@ vector_subtraction_test() ->
     Vector3 = #vector{x=1, y=1, z=1},
     Vector4 = #vector{x=-1, y=-1, z=-1},
 
-    Subtest1 = vectors_equal(Vector1, subtract_vectors(Vector1, Vector1)),
-    Subtest2 = vectors_equal(Vector3, subtract_vectors(Vector3, Vector1)),
-    Subtest3 = not vectors_equal(Vector3, subtract_vectors(Vector1, Vector3)),
-    Subtest4 = vectors_equal(Vector4, subtract_vectors(Vector4, Vector1)),
-    Subtest5 = not vectors_equal(Vector4, subtract_vectors(Vector1, Vector4)),
-    Subtest5 = vectors_equal(add_vectors(Vector2, Vector4),
-			     subtract_vectors(Vector2, Vector3)),
+    Subtest1 = vectors_equal(Vector1, vector_sub(Vector1, Vector1)),
+    Subtest2 = vectors_equal(Vector3, vector_sub(Vector3, Vector1)),
+    Subtest3 = not vectors_equal(Vector3, vector_sub(Vector1, Vector3)),
+    Subtest4 = vectors_equal(Vector4, vector_sub(Vector4, Vector1)),
+    Subtest5 = not vectors_equal(Vector4, vector_sub(Vector1, Vector4)),
+    Subtest5 = vectors_equal(vector_add(Vector2, Vector4),
+			     vector_sub(Vector2, Vector3)),
 
     Subtest1 and Subtest2 and Subtest3 and Subtest4 and Subtest5.
 
@@ -253,15 +257,15 @@ vector_square_mag_test() ->
 
     Subtest1 and Subtest2 and Subtest3.
 
-vector_magnitude_test() ->
+vector_mag_test() ->
     io:format("vector magnitude test", []),
     Vector1 = #vector{x=0, y=0, z=0},
     Vector2 = #vector{x=1, y=1, z=1},
     Vector3 = #vector{x=3, y=-4, z=0},
 
-    Subtest1 = (0 == vector_magnitude(Vector1)),
-    Subtest2 = (math:sqrt(3) == vector_magnitude(Vector2)),
-    Subtest3 = (5 == vector_magnitude(Vector3)),
+    Subtest1 = (0 == vector_mag(Vector1)),
+    Subtest2 = (math:sqrt(3) == vector_mag(Vector2)),
+    Subtest3 = (5 == vector_mag(Vector3)),
 
     Subtest1 and Subtest2 and Subtest3.
 
@@ -315,13 +319,13 @@ vector_cross_product_test() ->
     Subtest4 = vectors_equal(Vector7, vector_cross_product(Vector5, Vector6)),
     Subtest5 = vectors_equal(
 		 vector_cross_product(Vector7,
-				      add_vectors(Vector8, Vector9)),
-		 add_vectors(
+				      vector_add(Vector8, Vector9)),
+		 vector_add(
 		   vector_cross_product(Vector7, Vector8),
 		   vector_cross_product(Vector7, Vector9))),
     Subtest6 = vectors_equal(Vector1,
-			     add_vectors(
-			       add_vectors(
+			     vector_add(
+			       vector_add(
 				 vector_cross_product(
 				   Vector7,
 				   vector_cross_product(Vector8, Vector9)),
@@ -368,8 +372,28 @@ ray_shooting_test() ->
 
 point_on_screen_test() ->
     io:format("point on screen test", []),
+    Camera1 = #camera{location=#vector{x=0, y=0, z=0},
+		      rotation=#vector{x=0, y=0, z=0},
+		      fov=90,
+		      screen=#screen{width=1, height=1}},
     false.
 
 nearest_object_intersecting_ray_test() ->
     io:format("nearest object intersecting ray test", []),
     false.
+
+focal_length_test() ->
+    Epsilon = 0.1,
+    Size = 36,
+    io:format("focal length test", []),
+    lists:foldl(
+      fun({Focal_length, Dimension}, Matches) ->
+	      Result = focal_length(Dimension, Size),
+	      %io:format("comparing ~w ~w ~w ~w~n", [Focal_length, Dimension, Result, Matches]),
+     Matches
+		  and ((Focal_length + Epsilon >= focal_length(
+						    Dimension, Size))
+		       and (Focal_length - Epsilon =< focal_length(
+						       Dimension, Size)))
+      end, true,
+      [{13, 108}, {15, 100.4}, {18, 90}, {21, 81.2}]).
