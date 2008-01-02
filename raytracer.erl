@@ -33,8 +33,25 @@ nearest_object_intersecting_ray(_Ray, _Scene) ->
 focal_length(Angle, Dimension) ->
     Dimension/(2*math:tan(Angle*(math:pi()/180)/2)).
 
-point_on_screen(_X, _Y, _Camera) ->
-    none.
+point_on_screen(X, Y, Camera) ->
+    %TODO: implement rotation (using quaternions)
+    Screen_width = (Camera#camera.screen)#screen.width,
+    Screen_height = (Camera#camera.screen)#screen.height,
+    lists:foldl(fun(Vect, Sum) -> vector_add(Vect, Sum) end,
+		Camera#camera.location,
+		[vector_scalar_mult(
+		   #vector{x=0, y=0, z=1},
+		   focal_length(
+		     Camera#camera.fov,
+		     Screen_width)),
+		 #vector{x = (X-0.5) * Screen_width,
+			 y=0,
+			 z=0},
+		 #vector{x=0,
+			 y= (Y-0.5) * Screen_height,
+			 z=0}
+		]).
+    
 
 shoot_ray(_From, _Through) ->
     none.
@@ -44,9 +61,15 @@ ray_through_pixel(X, Y, Camera) ->
     shoot_ray(Camera#camera.location, point_on_screen(X, Y, Camera)).
 
 vectors_equal(V1, V2) ->
-    (V1#vector.x == V2#vector.x)
-	and (V1#vector.y == V2#vector.y)
-	and (V1#vector.z == V2#vector.z).
+    vectors_equal(V1, V2, 0.0001).
+vectors_equal(V1, V2, Epsilon) ->
+    (V1#vector.x + Epsilon >= V2#vector.x)
+	and (V1#vector.x - Epsilon =<V2#vector.x)
+	and (V1#vector.y + Epsilon >= V2#vector.y)
+	and (V1#vector.y - Epsilon =<V2#vector.y)
+    	and (V1#vector.z + Epsilon >= V2#vector.z)
+	and (V1#vector.z - Epsilon =<V2#vector.z).
+
 
 vector_add(V1, V2) ->
     #vector{x = V1#vector.x + V2#vector.x,
@@ -86,11 +109,15 @@ vector_normalize(V) ->
 vector_neg(#vector{x=X, y=Y, z=Z}) ->
     #vector{x=-X, y=-Y, z=-Z}.
 
+vector_rotate(V1, _V2) ->
+    %TODO: implement using quaternions
+    V1.
+
 % returns a list of objects in the scene
 % camera is assumed to be the first element in the scene
 scene() ->
     [#camera{location=#vector{x=0, y=0, z=0},
-	     rotation=#vector{x=1, y=0, z=0},
+	     rotation=#vector{x=0, y=0, z=0},
 	     fov=90,
 	     screen=#screen{width=1, height=1}},
      #sphere{radius=2,
@@ -134,7 +161,7 @@ scene_test() ->
     case scene() of
 	[{camera,
 	  {vector, 0, 0, 0},
-	  {vector, 1, 0, 0},
+	  {vector, 0, 0, 0},
 	  90,
 	  {screen, 1, 1}},
 	 {sphere,
@@ -171,7 +198,8 @@ run_tests() ->
 	     fun ray_shooting_test/0,
 	     fun point_on_screen_test/0,
 	     fun nearest_object_intersecting_ray_test/0,
-	     fun focal_length_test/0
+	     fun focal_length_test/0,
+	     fun vector_rotation_test/0
 	    ],
     run_tests(Tests, 1, true).
 
@@ -200,11 +228,19 @@ vector_equality_test() ->
     io:format("vector equality"),
     Vector1 = #vector{x=0, y=0, z=0},
     Vector2 = #vector{x=1234, y=-234, z=0},
+    Vector3 = #vector{x=0.0983, y=0.0214, z=0.12342},
+    Vector4 = #vector{x=0.0984, y=0.0213, z=0.12341},
+    Vector5 = #vector{x=10/3, y=-10/6, z=8/7},
+    Vector6 = #vector{x=3.3, y=-1.6, z=1.1},
     
-    vectors_equal(Vector1, Vector1)
+    Subtest1 = vectors_equal(Vector1, Vector1)
 	and vectors_equal(Vector2, Vector2)
 	and not (vectors_equal(Vector1, Vector2))
-	and not (vectors_equal(Vector2, Vector1)).
+	and not (vectors_equal(Vector2, Vector1)),
+    Subtest2 = vectors_equal(Vector3, Vector4, 0.0001),
+    Subtest3 = vectors_equal(Vector5, Vector6, 0.1),
+
+    Subtest1 and Subtest2 and Subtest3.
     
     
 vector_addition_test() ->
@@ -376,7 +412,31 @@ point_on_screen_test() ->
 		      rotation=#vector{x=0, y=0, z=0},
 		      fov=90,
 		      screen=#screen{width=1, height=1}},
-    false.
+    Camera2 = #camera{location=#vector{x=0, y=0, z=0},
+		      rotation=#vector{x=0, y=0, z=0},
+		      fov=90,
+		      screen=#screen{width=640, height=480}},
+
+    Subtest1 = vectors_equal(
+		 #vector{x=0, y=0, z=0.5},
+		 point_on_screen(0.5, 0.5, Camera1)),
+    Subtest2 = vectors_equal(
+		 #vector{x=-0.5, y=-0.5, z=0.5},
+		 point_on_screen(0, 0, Camera1)),
+    Subtest3 = vectors_equal(
+		 #vector{x=0.5, y=0.5, z=0.5},
+		 point_on_screen(1, 1, Camera1)),
+    Subtest4 = vectors_equal(
+		 point_on_screen(0, 0, Camera2),
+		 #vector{x=-320, y=-240, z=320}),
+    Subtest5 = vectors_equal(
+		 point_on_screen(1, 1, Camera2),
+		 #vector{x=320, y=240, z=320}),
+    Subtest6 = vectors_equal(
+		point_on_screen(0.5, 0.5, Camera2),
+		#vector{x=0, y=0, z=320}),
+
+    Subtest1 and Subtest2 and Subtest3 and Subtest4 and Subtest5 and Subtest6.
 
 nearest_object_intersecting_ray_test() ->
     io:format("nearest object intersecting ray test", []),
@@ -388,7 +448,7 @@ focal_length_test() ->
     io:format("focal length test", []),
     lists:foldl(
       fun({Focal_length, Dimension}, Matches) ->
-	      Result = focal_length(Dimension, Size),
+	      %Result = focal_length(Dimension, Size),
 	      %io:format("comparing ~w ~w ~w ~w~n", [Focal_length, Dimension, Result, Matches]),
      Matches
 		  and ((Focal_length + Epsilon >= focal_length(
@@ -397,3 +457,29 @@ focal_length_test() ->
 						       Dimension, Size)))
       end, true,
       [{13, 108}, {15, 100.4}, {18, 90}, {21, 81.2}]).
+
+vector_rotation_test() ->
+    io:format("vector rotation test", []),
+    Vector1 = #vector{x=0, y=0, z=0},
+    Vector2 = #vector{x=0, y=1, z=0},
+    Vector3 = #vector{x=90, y=0, z=0},
+    Vector4 = #vector{x=45, y=0, z=0},
+    Vector5 = #vector{x=30.11, y=-988.2, z=92.231},
+    Vector6 = #vector{x=0, y=0, z=1},
+
+    Subtest1 = vectors_equal(
+		 vector_rotate(Vector1, Vector1),
+		 Vector1),
+    Subtest2 = vectors_equal(
+		 vector_rotate(Vector5, Vector1),
+		 Vector5),
+    Subtest3 = vectors_equal(
+		 vector_rotate(
+		   vector_rotate(Vector5, Vector4),
+		   Vector4),
+		 vector_rotate(Vector5, Vector3)),
+    Subtest4 = vectors_equal(
+		 Vector6,
+		 vector_rotate(Vector2, Vector3)),
+    
+    Subtest1 and Subtest2 and Subtest3 and Subtest4.
