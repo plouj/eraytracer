@@ -8,7 +8,9 @@
 -record(camera, {location, rotation, fov, screen}).
 -record(sphere, {radius, center, colour}).
 %-record(axis_aligned_cube, {size, location}).
-
+-define(BACKGROUND_COLOUR, {255, 255, 255}).
+-define(ERROR_COLOUR, {255, 0, 0}).
+-define(UNKNOWN_COLOUR, {0, 255, 0}).
 
 raytraced_pixel_list(0, 0, _) ->
     done;
@@ -26,15 +28,18 @@ trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
     Ray = ray_through_pixel(X, Y, Camera),
     case nearest_object_intersecting_ray(Ray, Rest_of_scene) of
 	{Nearest_object, _Distance} ->
+	    %io:format("hit: ~w~n", [{Nearest_object, _Distance}]),
 	    object_colour(Nearest_object);
 	none ->
-	    {255, 255, 255};
+	    ?BACKGROUND_COLOUR;
 	_Else ->
-	    {255, 0, 0}
+	    ?ERROR_COLOUR
     end.
 
 nearest_object_intersecting_ray(Ray, Scene) ->
     nearest_object_intersecting_ray(Ray, none, infinity, Scene).
+nearest_object_intersecting_ray(_Ray, NearestObj, infinity, []) ->
+    none;
 nearest_object_intersecting_ray(_Ray, NearestObj, Distance, []) ->
 %    io:format("intersecting ~w at ~w~n", [NearestObj, Distance]),
     {NearestObj, Distance};
@@ -175,7 +180,7 @@ vector_rotate(V1, _V2) ->
 object_colour(#sphere{ colour=C}) ->
     {C#colour.r, C#colour.g, C#colour.b};
 object_colour(_Unknown) ->
-    {0, 0, 0}.
+    ?UNKNOWN_COLOUR.
 
 % returns a list of objects in the scene
 % camera is assumed to be the first element in the scene
@@ -210,7 +215,7 @@ write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
     end.
 
 go() ->
-    go(10, 10, "/tmp/traced.ppm").
+    go(16, 12, "/tmp/traced.ppm").
 go(Width, Height, Filename) ->
     write_pixels_to_ppm(Width,
 			Height,
