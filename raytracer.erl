@@ -3,11 +3,12 @@
 
 -record(vector, {x, y, z}).
 -record(colour, {r, g, b}).
-%-record(ray, {origin, direction}).
+-record(ray, {origin, direction}).
 -record(screen, {width, height}). % screen dimensions in the 3D world
 -record(camera, {location, rotation, fov, screen}).
 -record(sphere, {radius, center, colour}).
 %-record(axis_aligned_cube, {size, location}).
+
 
 raytraced_pixel_list(0, 0, _) ->
     done;
@@ -23,12 +24,70 @@ raytraced_pixel_list(Width, Height, Scene) when Width > 0, Height > 0 ->
 
 trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
     Ray = ray_through_pixel(X, Y, Camera),
-    {_Nearest_object, _Distance} = nearest_object_intersecting_ray(Ray, Rest_of_scene),
-    % return the Nearest_object's colour
-    {random:uniform(256)-1, random:uniform(256)-1, random:uniform(256)-1}.
+    case nearest_object_intersecting_ray(Ray, Rest_of_scene) of
+	{Nearest_object, _Distance} ->
+	    object_colour(Nearest_object);
+	none ->
+	    {255, 255, 255};
+	_Else ->
+	    {255, 0, 0}
+    end.
 
-nearest_object_intersecting_ray(_Ray, _Scene) ->
-    none.
+nearest_object_intersecting_ray(Ray, Scene) ->
+    nearest_object_intersecting_ray(Ray, none, infinity, Scene).
+nearest_object_intersecting_ray(_Ray, NearestObj, Distance, []) ->
+    io:format("intersecting ~w at ~w~n", [NearestObj, Distance]),
+    NearestObj;
+nearest_object_intersecting_ray(Ray,
+				NearestObj,
+				Distance,
+				[Object|Rest_of_scene]) ->
+    case Object of
+	#sphere{} ->
+	    NewDistance = ray_sphere_intersect(Ray, Object),
+	    if NewDistance /= none ->
+		    io:format("found new intersection at ~w~n", [Distance]),
+		    nearest_object_intersecting_ray(
+		      Ray,
+		      Object,
+		      NewDistance,
+		      Rest_of_scene);
+	       true ->
+		    nearest_object_intersecting_ray(Ray,
+						    NearestObj,
+						    Distance,
+						    Rest_of_scene)
+	    end;
+	_Else ->
+	    nearest_object_intersecting_ray(Ray,
+					    NearestObj,
+					    Distance,
+					    Rest_of_scene)
+    end.
+
+ray_sphere_intersect(
+  #ray{origin=#vector{
+	 x=X0, y=Y0, z=Z0},
+       direction=#vector{
+	 x=Xd, y=Yd, z=Zd}},
+  #sphere{radius=Radius, center=#vector{
+			   x=Xc, y=Yc, z=Zc}}) ->
+    A = Xd*Xd + Yd*Yd + Zd*Zd,
+    B = 2 * (Xd*(X0-Xc) + Yd*(Y0-Yc) + Zd*(Z0-Zc)),
+    C = (X0-Xc)*(X0-Xc) + (Y0-Yc)*(Y0-Yc) + (Z0-Zc)*(Z0-Zc) - Radius*Radius,
+    Discriminant = B*B - 4*A*C,
+    %io:format("A=~w B=~w C=~w discriminant=~w~n",
+%	      [A, B, C, Discriminant]),
+    if Discriminant >= 0 ->
+	    T0 = (-B + math:sqrt(Discriminant))/2,
+	    T1 = (-B - math:sqrt(Discriminant))/2,
+	    %io:format("T0=~w T1=~w~n", [T0, T1]),
+	    lists:min([T0, T1]);
+       true ->
+	    none
+    end.
+
+	   
 
 focal_length(Angle, Dimension) ->
     Dimension/(2*math:tan(Angle*(math:pi()/180)/2)).
@@ -53,8 +112,8 @@ point_on_screen(X, Y, Camera) ->
 		]).
     
 
-shoot_ray(_From, _Through) ->
-    none.
+shoot_ray(From, Through) ->
+    #ray{origin=From, direction=vector_sub(Through, From)}.
 
 % assume that X and Y are percentages of the 3D world screen dimensions
 ray_through_pixel(X, Y, Camera) ->
@@ -113,6 +172,11 @@ vector_rotate(V1, _V2) ->
     %TODO: implement using quaternions
     V1.
 
+object_colour(#sphere{ colour=C}) ->
+    {C#colour.r, C#colour.g, C#colour.b};
+object_colour(_Unknown) ->
+    {0, 0, 0}.
+
 % returns a list of objects in the scene
 % camera is assumed to be the first element in the scene
 scene() ->
@@ -120,13 +184,13 @@ scene() ->
 	     rotation=#vector{x=0, y=0, z=0},
 	     fov=90,
 	     screen=#screen{width=1, height=1}},
-     #sphere{radius=2,
-	     center=#vector{x=5, y=0, z=0},
+     #sphere{radius=4,
+	     center=#vector{x=0, y=0, z=7},
 	     colour=#colour{r=0, g=128, b=255}}
     ].
 
 
-write_pixels_to_ppm(Width, Height, Pixels, MaxValue, Filename) ->
+write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
     case file:open(Filename, write) of
 	{ok, IoDevice} ->
 	    io:format("file opened~n", []),
@@ -145,7 +209,7 @@ write_pixels_to_ppm(Width, Height, Pixels, MaxValue, Filename) ->
     end.
 
 go() ->
-    go(1, 1, "/tmp/traced.ppm").
+    go(10, 10, "/tmp/traced.ppm").
 go(Width, Height, Filename) ->
     write_pixels_to_ppm(Width,
 			Height,
@@ -165,8 +229,8 @@ scene_test() ->
 	  90,
 	  {screen, 1, 1}},
 	 {sphere,
-	  2,
-	  {vector, 5, 0, 0},
+	  4,
+	  {vector, 0, 0, 7},
 	  {colour, 0, 128, 255}}] ->
 	    true;
 _Else ->
@@ -403,8 +467,37 @@ ray_through_pixel_test() ->
     false.
 
 ray_shooting_test() ->
-    io:format("ray shooting test", []),
-    false.
+    io:format("ray shooting test"),
+    Vector1 = #vector{x=0, y=0, z=0},
+    Vector2 = #vector{x=1, y=0, z=0},
+    
+    Subtest1 = vectors_equal(
+		 (shoot_ray(Vector1, Vector2))#ray.direction,
+		 Vector2),
+    
+    Subtest1.
+
+ray_sphere_intersection_test() ->
+    Sphere = #sphere{
+      radius=3,
+      center=#vector{x = 0, y=0, z=10},
+      colour=#colour{r=111, g=111, b=111}},
+    Ray1 = #ray{
+      origin=#vector{x=0, y=0, z=0},
+      direction=#vector{x=0, y=0, z=1}},
+    Ray2 = #ray{
+      origin=#vector{x=3, y=0, z=0},
+      direction=#vector{x=0, y=0, z=1}},
+    Ray3 = #ray{
+      origin=#vector{x=4, y=0, z=0},
+      direction=#vector{x=0, y=0, z=1}},
+    io:format("ray/sphere intersection=~w~n", [ray_sphere_intersect(Ray1, Sphere)]),
+    Subtest1 = ray_sphere_intersect(Ray1, Sphere) == 7.0,
+    Subtest2 = ray_sphere_intersect(Ray2, Sphere) == 10.0,
+    Subtest3 = ray_sphere_intersect(Ray3, Sphere) == none,
+    io:format("ray/sphere intersection=~w~n", [ray_sphere_intersect(Ray2, Sphere)]),
+    io:format("ray/sphere intersection=~w~n", [ray_sphere_intersect(Ray3, Sphere)]),
+    Subtest1 and Subtest2 and Subtest3.
 
 point_on_screen_test() ->
     io:format("point on screen test", []),
