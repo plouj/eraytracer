@@ -37,7 +37,7 @@ nearest_object_intersecting_ray(Ray, Scene) ->
     nearest_object_intersecting_ray(Ray, none, infinity, Scene).
 nearest_object_intersecting_ray(_Ray, NearestObj, Distance, []) ->
 %    io:format("intersecting ~w at ~w~n", [NearestObj, Distance]),
-    NearestObj;
+    {NearestObj, Distance};
 nearest_object_intersecting_ray(Ray,
 				NearestObj,
 				Distance,
@@ -190,6 +190,7 @@ scene() ->
     ].
 
 
+% assumes Pixels are ordered in a row by row fasion
 write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
     case file:open(Filename, write) of
 	{ok, IoDevice} ->
