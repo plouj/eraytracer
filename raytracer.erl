@@ -14,13 +14,13 @@ raytraced_pixel_list(0, 0, _) ->
     done;
 raytraced_pixel_list(Width, Height, Scene) when Width > 0, Height > 0 ->
     lists:flatmap(
-      fun(X) ->
+      fun(Y) ->
 	      lists:map(
-		fun(Y) ->
+		fun(X) ->
 			% coordinates passed as a percentage
 			trace_ray_from_pixel({X/Width, Y/Height}, Scene) end,
-		lists:seq(0, Height - 1)) end,
-      lists:seq(0, Width - 1)).
+		lists:seq(0, Width - 1)) end,
+      lists:seq(0, Height - 1)).
 
 trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
     Ray = ray_through_pixel(X, Y, Camera),
@@ -36,7 +36,7 @@ trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
 nearest_object_intersecting_ray(Ray, Scene) ->
     nearest_object_intersecting_ray(Ray, none, infinity, Scene).
 nearest_object_intersecting_ray(_Ray, NearestObj, Distance, []) ->
-    io:format("intersecting ~w at ~w~n", [NearestObj, Distance]),
+%    io:format("intersecting ~w at ~w~n", [NearestObj, Distance]),
     NearestObj;
 nearest_object_intersecting_ray(Ray,
 				NearestObj,
@@ -46,7 +46,7 @@ nearest_object_intersecting_ray(Ray,
 	#sphere{} ->
 	    NewDistance = ray_sphere_intersect(Ray, Object),
 	    if NewDistance /= none ->
-		    io:format("found new intersection at ~w~n", [Distance]),
+%		    io:format("found new intersection at ~w~n", [Distance]),
 		    nearest_object_intersecting_ray(
 		      Ray,
 		      Object,
@@ -183,7 +183,7 @@ scene() ->
     [#camera{location=#vector{x=0, y=0, z=0},
 	     rotation=#vector{x=0, y=0, z=0},
 	     fov=90,
-	     screen=#screen{width=1, height=1}},
+	     screen=#screen{width=4, height=3}},
      #sphere{radius=4,
 	     center=#vector{x=0, y=0, z=7},
 	     colour=#colour{r=0, g=128, b=255}}
@@ -227,7 +227,7 @@ scene_test() ->
 	  {vector, 0, 0, 0},
 	  {vector, 0, 0, 0},
 	  90,
-	  {screen, 1, 1}},
+	  {screen, 4, 3}},
 	 {sphere,
 	  4,
 	  {vector, 0, 0, 7},
