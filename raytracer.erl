@@ -38,7 +38,7 @@ trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
 
 nearest_object_intersecting_ray(Ray, Scene) ->
     nearest_object_intersecting_ray(Ray, none, infinity, Scene).
-nearest_object_intersecting_ray(_Ray, NearestObj, infinity, []) ->
+nearest_object_intersecting_ray(_Ray, _NearestObj, infinity, []) ->
     none;
 nearest_object_intersecting_ray(_Ray, NearestObj, Distance, []) ->
 %    io:format("intersecting ~w at ~w~n", [NearestObj, Distance]),
