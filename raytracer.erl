@@ -46,28 +46,31 @@ nearest_object_intersecting_ray(_Ray, NearestObj, Distance, []) ->
 nearest_object_intersecting_ray(Ray,
 				NearestObj,
 				Distance,
-				[Object|Rest_of_scene]) ->
-    case Object of
-	#sphere{} ->
-	    NewDistance = ray_sphere_intersect(Ray, Object),
-	    if NewDistance /= none ->
-%		    io:format("found new intersection at ~w~n", [Distance]),
-		    nearest_object_intersecting_ray(
-		      Ray,
-		      Object,
-		      NewDistance,
-		      Rest_of_scene);
-	       true ->
-		    nearest_object_intersecting_ray(Ray,
-						    NearestObj,
-						    Distance,
-						    Rest_of_scene)
-	    end;
-	_Else ->
+				[CurrentObject|Rest_of_scene]) ->
+    NewDistance = ray_object_intersect(Ray, CurrentObject),
+    %io:format("Distace=~w NewDistace=~w~n", [Distance, NewDistance]),
+    if (NewDistance /= infinity)
+       and ((Distance == infinity) or (Distance > NewDistance)) ->
+	    %io:format("another closer object found~n", []),
+	    nearest_object_intersecting_ray(
+	      Ray,
+	      CurrentObject,
+	      NewDistance,
+	      Rest_of_scene);
+       true ->
+	    %io:format("no closer obj found~n", []),
 	    nearest_object_intersecting_ray(Ray,
 					    NearestObj,
 					    Distance,
 					    Rest_of_scene)
+    end.
+
+ray_object_intersect(Ray, Object) ->
+    case Object of
+	#sphere{} ->
+	    ray_sphere_intersect(Ray, Object);
+	_Else ->
+	    infinity
     end.
 
 ray_sphere_intersect(
@@ -86,10 +89,14 @@ ray_sphere_intersect(
     if Discriminant >= 0 ->
 	    T0 = (-B + math:sqrt(Discriminant))/2,
 	    T1 = (-B - math:sqrt(Discriminant))/2,
-	    %io:format("T0=~w T1=~w~n", [T0, T1]),
-	    lists:min([T0, T1]);
+	    if (T0 >= 0) and (T1 >= 0) ->
+		    %io:format("T0=~w T1=~w~n", [T0, T1]),
+		    lists:min([T0, T1]);
+	       true ->
+		    infinity
+	    end;
        true ->
-	    none
+	    infinity
     end.
 
 	   
@@ -191,7 +198,13 @@ scene() ->
 	     screen=#screen{width=4, height=3}},
      #sphere{radius=4,
 	     center=#vector{x=0, y=0, z=7},
-	     colour=#colour{r=0, g=128, b=255}}
+	     colour=#colour{r=0, g=128, b=255}},
+     #sphere{radius=4,
+	     center=#vector{x=-5, y=3, z=9},
+	     colour=#colour{r=255, g=128, b=0}},
+     #sphere{radius=4,
+	     center=#vector{x=-5, y=-2, z=10},
+	     colour=#colour{r=128, g=255, b=0}}
     ].
 
 
@@ -237,7 +250,15 @@ scene_test() ->
 	 {sphere,
 	  4,
 	  {vector, 0, 0, 7},
-	  {colour, 0, 128, 255}}] ->
+	  {colour, 0, 128, 255}},
+	 {sphere,
+	  4,
+	  {vector, -5, 3, 9},
+	  {colour, 255, 128, 0}},
+	 {sphere,
+	  4,
+	  {vector, -5, -2, 10},
+	  {colour, 128, 255, 0}}] ->
 	    true;
 _Else ->
 	    false
@@ -539,7 +560,26 @@ point_on_screen_test() ->
 
 nearest_object_intersecting_ray_test() ->
     io:format("nearest object intersecting ray test", []),
-    false.
+    % test to make sure that we really get the closest object
+    Sphere1=#sphere{radius=5,
+		   center=#vector{x=0, y=0, z=10},
+		   colour=#colour{r=0, g=0, b=10}},
+    Sphere2=#sphere{radius=5,
+		   center=#vector{x=0, y=0, z=20},
+		   colour=#colour{r=0, g=0, b=20}},
+    Sphere3=#sphere{radius=5,
+		   center=#vector{x=0, y=0, z=30},
+		   colour=#colour{r=0, g=0, b=30}},
+    Sphere4=#sphere{radius=5,
+		   center=#vector{x=0, y=0, z=-10},
+		   colour=#colour{r=0, g=0, b=-10}},
+    Scene1=[Sphere1, Sphere2, Sphere3, Sphere4],
+    Ray1=#ray{origin=#vector{x=0, y=0, z=0},
+	      direction=#vector{x=0, y=0, z=1}},
+
+    Subtest1 = {Sphere1, 5} == nearest_object_intersecting_ray(Ray1, Scene1),
+    
+    Subtest1.
 
 focal_length_test() ->
     Epsilon = 0.1,
