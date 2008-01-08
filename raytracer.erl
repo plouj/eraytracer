@@ -9,10 +9,11 @@
 -record(sphere, {radius, center, colour}).
 -record(point_light, {colour, intensity, location}).
 %-record(axis_aligned_cube, {size, location}).
--define(BACKGROUND_COLOUR, #colour{r=255, g=255, b=255}).
+-define(BACKGROUND_COLOUR, #colour{r=0, g=0, b=0}).
 -define(ERROR_COLOUR, #colour{r=255, g=0, b=0}).
 -define(UNKNOWN_COLOUR, #colour{r=0, g=255, b=0}).
--define(FOG_DISTANCE, 20).
+-define(FOG_DISTANCE, 40).
+
 
 raytraced_pixel_list(0, 0, _) ->
     done;
@@ -22,21 +23,35 @@ raytraced_pixel_list(Width, Height, Scene) when Width > 0, Height > 0 ->
 	      lists:map(
 		fun(X) ->
 			% coordinates passed as a percentage
-			trace_ray_from_pixel({X/Width, Y/Height}, Scene) end,
+			colour_to_pixel(
+			  colour_trunc(
+			    trace_ray_from_pixel(
+			      {X/Width, Y/Height}, Scene))) end,
 		lists:seq(0, Width - 1)) end,
       lists:seq(0, Height - 1)).
 
 trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
     Ray = ray_through_pixel(X, Y, Camera),
     case nearest_object_intersecting_ray(Ray, Rest_of_scene) of
-	{Nearest_object, _Distance} ->
+	{Nearest_object, Distance} ->
 	    %io:format("hit: ~w~n", [{Nearest_object, _Distance}]),
-	    colour_to_pixel(object_colour(Nearest_object));
+	      lighting_function(Nearest_object, Distance);
 	none ->
-	    colour_to_pixel(?BACKGROUND_COLOUR);
+	    ?BACKGROUND_COLOUR;
 	_Else ->
-	    colour_to_pixel(?ERROR_COLOUR)
+	    ?ERROR_COLOUR
     end.
+
+lighting_function(Object, Distance) ->
+    if Distance =< ?FOG_DISTANCE ->
+	    vector_to_colour(
+	      vector_scalar_mult(
+		colour_to_vector(object_colour(Object)),
+		(?FOG_DISTANCE - Distance)/?FOG_DISTANCE));
+       true ->
+	    #colour{r=0, g=0, b=0}
+    end.
+    
 
 nearest_object_intersecting_ray(Ray, Scene) ->
     nearest_object_intersecting_ray(Ray, none, infinity, Scene).
@@ -197,6 +212,8 @@ vector_to_colour(#vector{x=X, y=Y, z=Z}) ->
     #colour{r=X, g=Y, b=Z}.
 colour_to_pixel(#colour{r=R, g=G, b=B}) ->
     {R, G, B}.
+colour_trunc(#colour{r=R, g=G, b=B}) ->
+    #colour{r=trunc(R), g=trunc(G), b=trunc(B)}.
 
 % returns a list of objects in the scene
 % camera is assumed to be the first element in the scene
