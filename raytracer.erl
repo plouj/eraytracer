@@ -7,10 +7,12 @@
 -record(screen, {width, height}). % screen dimensions in the 3D world
 -record(camera, {location, rotation, fov, screen}).
 -record(sphere, {radius, center, colour}).
+-record(point_light, {colour, intensity, location}).
 %-record(axis_aligned_cube, {size, location}).
--define(BACKGROUND_COLOUR, {255, 255, 255}).
--define(ERROR_COLOUR, {255, 0, 0}).
--define(UNKNOWN_COLOUR, {0, 255, 0}).
+-define(BACKGROUND_COLOUR, #colour{r=255, g=255, b=255}).
+-define(ERROR_COLOUR, #colour{r=255, g=0, b=0}).
+-define(UNKNOWN_COLOUR, #colour{r=0, g=255, b=0}).
+-define(FOG_DISTANCE, 20).
 
 raytraced_pixel_list(0, 0, _) ->
     done;
@@ -29,11 +31,11 @@ trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
     case nearest_object_intersecting_ray(Ray, Rest_of_scene) of
 	{Nearest_object, _Distance} ->
 	    %io:format("hit: ~w~n", [{Nearest_object, _Distance}]),
-	    object_colour(Nearest_object);
+	    colour_to_pixel(object_colour(Nearest_object));
 	none ->
-	    ?BACKGROUND_COLOUR;
+	    colour_to_pixel(?BACKGROUND_COLOUR);
 	_Else ->
-	    ?ERROR_COLOUR
+	    colour_to_pixel(?ERROR_COLOUR)
     end.
 
 nearest_object_intersecting_ray(Ray, Scene) ->
@@ -185,9 +187,16 @@ vector_rotate(V1, _V2) ->
     V1.
 
 object_colour(#sphere{ colour=C}) ->
-    {C#colour.r, C#colour.g, C#colour.b};
+    C;
 object_colour(_Unknown) ->
     ?UNKNOWN_COLOUR.
+
+colour_to_vector(#colour{r=R, g=G, b=B}) ->
+    #vector{x=R, y=G, z=B}.
+vector_to_colour(#vector{x=X, y=Y, z=Z}) ->
+    #colour{r=X, g=Y, b=Z}.
+colour_to_pixel(#colour{r=R, g=G, b=B}) ->
+    {R, G, B}.
 
 % returns a list of objects in the scene
 % camera is assumed to be the first element in the scene
@@ -196,6 +205,9 @@ scene() ->
 	     rotation=#vector{x=0, y=0, z=0},
 	     fov=90,
 	     screen=#screen{width=4, height=3}},
+     #point_light{colour=#colour{r=255, g=255, b=128},
+		  intensity=1,
+		  location=#vector{x=5, y=5, z=1}},
      #sphere{radius=4,
 	     center=#vector{x=0, y=0, z=7},
 	     colour=#colour{r=0, g=128, b=255}},
@@ -247,6 +259,10 @@ scene_test() ->
 	  {vector, 0, 0, 0},
 	  90,
 	  {screen, 4, 3}},
+	 {point_light,
+	  {colour, 255, 255, 128},
+	  1,
+	  {vector, 5, 5, 1}},
 	 {sphere,
 	  4,
 	  {vector, 0, 0, 7},
