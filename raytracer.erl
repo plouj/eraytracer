@@ -30,6 +30,7 @@ raytraced_pixel_list(Width, Height, Scene) when Width > 0, Height > 0 ->
 		lists:seq(0, Width - 1)) end,
       lists:seq(0, Height - 1)).
 
+% assumes X and Y are percentages of the screen dimensions
 trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
     Ray = ray_through_pixel(X, Y, Camera),
     case nearest_object_intersecting_ray(Ray, Rest_of_scene) of
@@ -52,6 +53,17 @@ lighting_function(Object, Distance) ->
 	    #colour{r=0, g=0, b=0}
     end.
     
+point_light_intensity(
+  #point_light{colour=Light_colour,
+	       location=Light_location},
+  Hit_normal,
+  Hit_location) ->
+    vector_to_colour(
+      vector_scalar_mult(
+	colour_to_vector(Light_colour),
+	vector_dot_product(Hit_normal,
+			   vector_normalize(
+			     vector_sub(Light_location, Hit_location))))).
 
 nearest_object_intersecting_ray(Ray, Scene) ->
     nearest_object_intersecting_ray(Ray, none, infinity, Scene).
@@ -323,7 +335,8 @@ run_tests() ->
 	     fun point_on_screen_test/0,
 	     fun nearest_object_intersecting_ray_test/0,
 	     fun focal_length_test/0,
-	     fun vector_rotation_test/0
+	     fun vector_rotation_test/0,
+	     fun point_light_intensity_test/0
 	    ],
     run_tests(Tests, 1, true).
 
@@ -655,3 +668,15 @@ vector_rotation_test() ->
 		 vector_rotate(Vector2, Vector3)),
     
     Subtest1 and Subtest2 and Subtest3 and Subtest4.
+
+point_light_intensity_test() ->
+    io:format("point light intensity test", []),
+    Light1 = #point_light{colour=#colour{r=255, g=255, b=200},
+			  intensity=7,
+			  location=#vector{x=0, y=0, z=0}},
+    Hit_normal1 = #vector{x=1, y=0, z=0},
+    Hit_location1 = #vector{x=-1, y=0, z=0},
+
+    Subtest1 = point_light_intensity(Light1, Hit_normal1, Hit_location1) == #colour{r=255, g=255, b=200},
+    
+    Subtest1.
