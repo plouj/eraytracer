@@ -7,7 +7,7 @@
 -record(screen, {width, height}). % screen dimensions in the 3D world
 -record(camera, {location, rotation, fov, screen}).
 -record(sphere, {radius, center, colour}).
--record(point_light, {colour, intensity, location}).
+-record(point_light, {colour, diffuse_scale, location}).
 %-record(axis_aligned_cube, {size, location}).
 -define(BACKGROUND_COLOUR, #colour{r=0, g=0, b=0}).
 -define(ERROR_COLOUR, #colour{r=255, g=0, b=0}).
@@ -50,25 +50,25 @@ trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
 lighting_function(Object, Hit_location, Hit_normal, Scene) ->
     lists:foldl(
       fun (#point_light{colour=Light_colour,
-			intensity=Light_intensity,
+			diffuse_scale=Diffuse_scale,
 			location=Light_location},
-	   Total_intensity) ->
+	   Final_colour) ->
 	      vector_add(
 		vector_add(
 		  vector_scalar_mult(
 		    colour_to_vector(
 		      point_light_intensity(
 			#point_light{colour=Light_colour,
-				     intensity=Light_intensity,
+				     diffuse_scale=Diffuse_scale,
 				     location=Light_location},
 			Hit_normal,
 			Hit_location)),
-		    Light_intensity),
+		    Diffuse_scale),
 		  colour_to_vector(object_colour(Object))),
-		Total_intensity);
+		Final_colour);
 
-	 (_Not_a_point_light, Total_intensity) ->
-	      Total_intensity
+	 (_Not_a_point_light, Final_colour) ->
+	      Final_colour
       end,
       #vector{x=0, y=0, z=0},
       Scene).
@@ -283,7 +283,7 @@ scene() ->
 	     fov=90,
 	     screen=#screen{width=4, height=3}},
      #point_light{colour=#colour{r=255, g=255, b=128},
-		  intensity=1,
+		  diffuse_scale=1,
 		  location=#vector{x=5, y=-2, z=0}},
      #sphere{radius=4,
 	     center=#vector{x=0, y=0, z=7},
@@ -725,7 +725,7 @@ vector_rotation_test() ->
 point_light_intensity_test() ->
     io:format("point light intensity test", []),
     Light1 = #point_light{colour=#colour{r=255, g=255, b=200},
-			  intensity=7,
+			  diffuse_scale=7,
 			  location=#vector{x=0, y=0, z=0}},
     Hit_normal1 = #vector{x=1, y=0, z=0},
     Hit_location1 = #vector{x=-1, y=0, z=0},
