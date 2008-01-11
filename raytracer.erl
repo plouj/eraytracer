@@ -34,24 +34,44 @@ raytraced_pixel_list(Width, Height, Scene) when Width > 0, Height > 0 ->
 trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
     Ray = ray_through_pixel(X, Y, Camera),
     case nearest_object_intersecting_ray(Ray, Rest_of_scene) of
-	{Nearest_object, Distance} ->
+	{Nearest_object, _Distance, Hit_location, Hit_normal} ->
 	    %io:format("hit: ~w~n", [{Nearest_object, _Distance}]),
-	      lighting_function(Nearest_object, Distance);
+
+	      vector_to_colour(lighting_function(Nearest_object,
+						 Hit_location,
+						 Hit_normal,
+						 Rest_of_scene));
 	none ->
 	    ?BACKGROUND_COLOUR;
 	_Else ->
 	    ?ERROR_COLOUR
     end.
 
-lighting_function(Object, Distance) ->
-    if Distance =< ?FOG_DISTANCE ->
-	    vector_to_colour(
-	      vector_scalar_mult(
-		colour_to_vector(object_colour(Object)),
-		(?FOG_DISTANCE - Distance)/?FOG_DISTANCE));
-       true ->
-	    #colour{r=0, g=0, b=0}
-    end.
+lighting_function(Object, Hit_location, Hit_normal, Scene) ->
+    lists:foldl(
+      fun (#point_light{colour=Light_colour,
+			intensity=Light_intensity,
+			location=Light_location},
+	   Total_intensity) ->
+	      vector_add(
+		vector_add(
+		  vector_scalar_mult(
+		    colour_to_vector(
+		      point_light_intensity(
+			#point_light{colour=Light_colour,
+				     intensity=Light_intensity,
+				     location=Light_location},
+			Hit_normal,
+			Hit_location)),
+		    Light_intensity),
+		  colour_to_vector(object_colour(Object))),
+		Total_intensity);
+
+	 (_Not_a_point_light, Total_intensity) ->
+	      Total_intensity
+      end,
+      #vector{x=0, y=0, z=0},
+      Scene).
     
 point_light_intensity(
   #point_light{colour=Light_colour,
@@ -61,19 +81,27 @@ point_light_intensity(
     vector_to_colour(
       vector_scalar_mult(
 	colour_to_vector(Light_colour),
-	vector_dot_product(Hit_normal,
-			   vector_normalize(
-			     vector_sub(Light_location, Hit_location))))).
+	lists:max([0,
+		   vector_dot_product(
+		     Hit_normal,
+		     vector_normalize(
+		       vector_sub(Light_location,
+				  Hit_location)))]))).
 
 nearest_object_intersecting_ray(Ray, Scene) ->
-    nearest_object_intersecting_ray(Ray, none, infinity, Scene).
-nearest_object_intersecting_ray(_Ray, _NearestObj, infinity, []) ->
+    nearest_object_intersecting_ray(
+      Ray, none, hitlocation, hitnormal, infinity, Scene).
+nearest_object_intersecting_ray(
+  _Ray,	_NearestObj, _Hit_location, _Normal, infinity, []) ->
     none;
-nearest_object_intersecting_ray(_Ray, NearestObj, Distance, []) ->
+nearest_object_intersecting_ray(
+  _Ray, NearestObj, Hit_location, Normal, Distance, []) ->
 %    io:format("intersecting ~w at ~w~n", [NearestObj, Distance]),
-    {NearestObj, Distance};
+    {NearestObj, Distance, Hit_location, Normal};
 nearest_object_intersecting_ray(Ray,
 				NearestObj,
+				Hit_location,
+				Normal,
 				Distance,
 				[CurrentObject|Rest_of_scene]) ->
     NewDistance = ray_object_intersect(Ray, CurrentObject),
@@ -81,15 +109,24 @@ nearest_object_intersecting_ray(Ray,
     if (NewDistance /= infinity)
        and ((Distance == infinity) or (Distance > NewDistance)) ->
 	    %io:format("another closer object found~n", []),
+	    New_hit_location =
+		vector_add(Ray#ray.origin,
+			   vector_scalar_mult(Ray#ray.direction, NewDistance)),
+	    New_normal = object_normal_at_point(
+			   CurrentObject, New_hit_location),
 	    nearest_object_intersecting_ray(
 	      Ray,
 	      CurrentObject,
+	      New_hit_location,
+	      New_normal,
 	      NewDistance,
 	      Rest_of_scene);
        true ->
 	    %io:format("no closer obj found~n", []),
 	    nearest_object_intersecting_ray(Ray,
 					    NearestObj,
+					    Hit_location,
+					    Normal,
 					    Distance,
 					    Rest_of_scene)
     end.
@@ -101,6 +138,10 @@ ray_object_intersect(Ray, Object) ->
 	_Else ->
 	    infinity
     end.
+
+object_normal_at_point(#sphere{center=Center}, Point) ->
+    vector_normalize(
+      vector_sub(Point, Center)).
 
 ray_sphere_intersect(
   #ray{origin=#vector{
@@ -154,7 +195,7 @@ point_on_screen(X, Y, Camera) ->
     
 
 shoot_ray(From, Through) ->
-    #ray{origin=From, direction=vector_sub(Through, From)}.
+    #ray{origin=From, direction=vector_normalize(vector_sub(Through, From))}.
 
 % assume that X and Y are percentages of the 3D world screen dimensions
 ray_through_pixel(X, Y, Camera) ->
@@ -218,6 +259,13 @@ object_colour(#sphere{ colour=C}) ->
 object_colour(_Unknown) ->
     ?UNKNOWN_COLOUR.
 
+point_on_sphere(#sphere{radius=Radius, center=#vector{x=XC, y=YC, z=ZC}},
+		#vector{x=X, y=Y, z=Z}) ->
+    Epsilon = 0.001,
+    Left_hand_side = (X-XC)*(X-XC) + (Y-YC)*(Y-YC) + (Z-ZC)*(Z-ZC),
+    Right_hand_side = Radius*Radius,
+    (Left_hand_side + Epsilon >= Right_hand_side) and (Left_hand_side - Epsilon =< Right_hand_side).
+
 colour_to_vector(#colour{r=R, g=G, b=B}) ->
     #vector{x=R, y=G, z=B}.
 vector_to_colour(#vector{x=X, y=Y, z=Z}) ->
@@ -236,7 +284,7 @@ scene() ->
 	     screen=#screen{width=4, height=3}},
      #point_light{colour=#colour{r=255, g=255, b=128},
 		  intensity=1,
-		  location=#vector{x=5, y=5, z=1}},
+		  location=#vector{x=5, y=-2, z=0}},
      #sphere{radius=4,
 	     center=#vector{x=0, y=0, z=7},
 	     colour=#colour{r=0, g=128, b=255}},
@@ -291,7 +339,7 @@ scene_test() ->
 	 {point_light,
 	  {colour, 255, 255, 128},
 	  1,
-	  {vector, 5, 5, 1}},
+	  {vector, 5, -2, 0}},
 	 {sphere,
 	  4,
 	  {vector, 0, 0, 7},
@@ -336,7 +384,8 @@ run_tests() ->
 	     fun nearest_object_intersecting_ray_test/0,
 	     fun focal_length_test/0,
 	     fun vector_rotation_test/0,
-	     fun point_light_intensity_test/0
+	     fun point_light_intensity_test/0,
+	     fun object_normal_at_point_test/0
 	    ],
     run_tests(Tests, 1, true).
 
@@ -623,7 +672,11 @@ nearest_object_intersecting_ray_test() ->
     Ray1=#ray{origin=#vector{x=0, y=0, z=0},
 	      direction=#vector{x=0, y=0, z=1}},
 
-    Subtest1 = {Sphere1, 5} == nearest_object_intersecting_ray(Ray1, Scene1),
+    {Object1, Distance1, Hit_location, Normal} = nearest_object_intersecting_ray(
+				      Ray1, Scene1),
+    Subtest1 = (Object1 == Sphere1) and (Distance1 == 5)
+	and vectors_equal(Normal, vector_neg(Ray1#ray.direction))
+	and point_on_sphere(Sphere1, Hit_location),
     
     Subtest1.
 
@@ -680,3 +733,41 @@ point_light_intensity_test() ->
     Subtest1 = point_light_intensity(Light1, Hit_normal1, Hit_location1) == #colour{r=255, g=255, b=200},
     
     Subtest1.
+
+object_normal_at_point_test() ->
+    io:format("object normal at point test"),
+    Sphere1 = #sphere{radius=13.5,
+		      center=#vector{x=0, y=0, z=0},
+		      colour=#colour{r=0, g=0, b=0}},
+    Point1 = #vector{x=13.5, y=0, z=0},
+    Point2 = #vector{x=0, y=13.5, z=0},
+    Point3 = #vector{x=0, y=0, z=13.5},
+    Point4 = vector_neg(Point1),
+    Point5 = vector_neg(Point2),
+    Point6 = vector_neg(Point3),
+    
+    % sphere object tests
+    Subtest1 = vectors_equal(
+		 vector_normalize(Point1),
+		 object_normal_at_point(Sphere1, Point1)),
+    Subtest2 = vectors_equal(
+		 vector_normalize(Point2),
+		 object_normal_at_point(Sphere1, Point2)),
+    Subtest3 = vectors_equal(
+		 vector_normalize(Point3),
+		 object_normal_at_point(Sphere1, Point3)),
+    Subtest4 = vectors_equal(
+		 vector_normalize(Point4),
+		 object_normal_at_point(Sphere1, Point4)),
+    Subtest5 = vectors_equal(
+		 vector_normalize(Point5),
+		 object_normal_at_point(Sphere1, Point5)),
+    Subtest6 = vectors_equal(
+		 vector_normalize(Point6),
+		 object_normal_at_point(Sphere1, Point6)),
+    Subtest7 = not vectors_equal(
+		 vector_normalize(Point1),
+		 object_normal_at_point(Sphere1, Point4)),
+    
+    Subtest1 and Subtest2 and Subtest3 and Subtest4 and Subtest5 and Subtest6
+	and Subtest7.
