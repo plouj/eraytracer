@@ -53,6 +53,8 @@ lighting_function(Object, Hit_location, Hit_normal, Scene) ->
 			location=Light_location},
 	   Final_colour) ->
 	      vector_add(
+		vector_component_mult(
+		  colour_to_vector(Light_colour),
 		vector_scalar_mult(
 		  colour_to_vector(object_colour(Object)),
 		  Diffuse_scale*lists:max([vector_dot_product(
@@ -60,7 +62,7 @@ lighting_function(Object, Hit_location, Hit_normal, Scene) ->
 					     vector_normalize(
 					       vector_sub(
 						 Light_location,
-						 Hit_location))), 0])),
+						 Hit_location))), 0]))),
 		Final_colour);
 	  (_Not_a_point_light, Final_colour) ->
 	      Final_colour
@@ -223,6 +225,9 @@ vector_mag(V) ->
 
 vector_scalar_mult(#vector{x=X, y=Y, z=Z}, Scalar) ->
     #vector{x=X*Scalar, y=Y*Scalar, z=Z*Scalar}.
+
+vector_component_mult(#vector{x=X1, y=Y1, z=Z1}, #vector{x=X2, y=Y2, z=Z2}) ->
+    #vector{x=X1*X2, y=Y1*Y2, z=Z1*Z2}.
 
 vector_dot_product(#vector{x=A1, y=A2, z=A3}, #vector{x=B1, y=B2, z=B3}) ->
     A1*B1 + A2*B2 + A3*B3.
