@@ -258,9 +258,8 @@ object_colour(_Unknown) ->
 point_on_sphere(#sphere{radius=Radius, center=#vector{x=XC, y=YC, z=ZC}},
 		#vector{x=X, y=Y, z=Z}) ->
     Epsilon = 0.001,
-    Left_hand_side = (X-XC)*(X-XC) + (Y-YC)*(Y-YC) + (Z-ZC)*(Z-ZC),
-    Right_hand_side = Radius*Radius,
-    (Left_hand_side + Epsilon >= Right_hand_side) and (Left_hand_side - Epsilon =< Right_hand_side).
+    Epsilon > abs(
+      ((X-XC)*(X-XC) + (Y-YC)*(Y-YC) + (Z-ZC)*(Z-ZC)) - Radius*Radius).
 
 colour_to_vector(#colour{r=R, g=G, b=B}) ->
     #vector{x=R, y=G, z=B}.
