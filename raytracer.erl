@@ -10,8 +10,8 @@
 -record(point_light, {colour, diffuse_scale, location}).
 %-record(axis_aligned_cube, {size, location}).
 -define(BACKGROUND_COLOUR, #colour{r=0, g=0, b=0}).
--define(ERROR_COLOUR, #colour{r=255, g=0, b=0}).
--define(UNKNOWN_COLOUR, #colour{r=0, g=255, b=0}).
+-define(ERROR_COLOUR, #colour{r=1, g=0, b=0}).
+-define(UNKNOWN_COLOUR, #colour{r=0, g=1, b=0}).
 -define(FOG_DISTANCE, 40).
 
 
@@ -24,9 +24,8 @@ raytraced_pixel_list(Width, Height, Scene) when Width > 0, Height > 0 ->
 		fun(X) ->
 			% coordinates passed as a percentage
 			colour_to_pixel(
-			  colour_trunc(
 			    trace_ray_from_pixel(
-			      {X/Width, Y/Height}, Scene))) end,
+			      {X/Width, Y/Height}, Scene)) end,
 		lists:seq(0, Width - 1)) end,
       lists:seq(0, Height - 1)).
 
@@ -165,8 +164,6 @@ ray_sphere_intersect(
 	    infinity
     end.
 
-	   
-
 focal_length(Angle, Dimension) ->
     Dimension/(2*math:tan(Angle*(math:pi()/180)/2)).
 
@@ -277,18 +274,18 @@ scene() ->
 	     rotation=#vector{x=0, y=0, z=0},
 	     fov=90,
 	     screen=#screen{width=4, height=3}},
-     #point_light{colour=#colour{r=255, g=255, b=128},
+     #point_light{colour=#colour{r=1, g=1, b=0.5},
 		  diffuse_scale=1,
 		  location=#vector{x=5, y=-2, z=0}},
      #sphere{radius=4,
 	     center=#vector{x=0, y=0, z=7},
-	     colour=#colour{r=0, g=128, b=255}},
+	     colour=#colour{r=0, g=0.5, b=1}},
      #sphere{radius=4,
 	     center=#vector{x=-5, y=3, z=9},
-	     colour=#colour{r=255, g=128, b=0}},
+	     colour=#colour{r=1, g=0.5, b=0}},
      #sphere{radius=4,
 	     center=#vector{x=-5, y=-2, z=10},
-	     colour=#colour{r=128, g=255, b=0}}
+	     colour=#colour{r=0.5, g=1, b=0}}
     ].
 
 
@@ -303,7 +300,9 @@ write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
 	    lists:foreach(
 	      fun({R, G, B}) ->
 		      io:format(IoDevice, "~p ~p ~p ",
-				[R, G, B]) end,
+				[trunc(R*MaxValue),
+				 trunc(G*MaxValue),
+				 trunc(B*MaxValue)]) end,
 	      Pixels),
 	    file:close(IoDevice),
 	    io:format("done~n", []);
@@ -332,21 +331,21 @@ scene_test() ->
 	  90,
 	  {screen, 4, 3}},
 	 {point_light,
-	  {colour, 255, 255, 128},
+	  {colour, 1, 1, 0.5},
 	  1,
 	  {vector, 5, -2, 0}},
 	 {sphere,
 	  4,
 	  {vector, 0, 0, 7},
-	  {colour, 0, 128, 255}},
+	  {colour, 0, 0.5, 1}},
 	 {sphere,
 	  4,
 	  {vector, -5, 3, 9},
-	  {colour, 255, 128, 0}},
+	  {colour, 1, 0.5, 0}},
 	 {sphere,
 	  4,
 	  {vector, -5, -2, 10},
-	  {colour, 128, 255, 0}}] ->
+	  {colour, 0.5, 1, 0}}] ->
 	    true;
 _Else ->
 	    false
@@ -598,7 +597,7 @@ ray_sphere_intersection_test() ->
     Sphere = #sphere{
       radius=3,
       center=#vector{x = 0, y=0, z=10},
-      colour=#colour{r=111, g=111, b=111}},
+      colour=#colour{r=0.4, g=0.4, b=0.4}},
     Ray1 = #ray{
       origin=#vector{x=0, y=0, z=0},
       direction=#vector{x=0, y=0, z=1}},
@@ -653,16 +652,16 @@ nearest_object_intersecting_ray_test() ->
     % test to make sure that we really get the closest object
     Sphere1=#sphere{radius=5,
 		   center=#vector{x=0, y=0, z=10},
-		   colour=#colour{r=0, g=0, b=10}},
+		   colour=#colour{r=0, g=0, b=0.03}},
     Sphere2=#sphere{radius=5,
 		   center=#vector{x=0, y=0, z=20},
-		   colour=#colour{r=0, g=0, b=20}},
+		   colour=#colour{r=0, g=0, b=0.06}},
     Sphere3=#sphere{radius=5,
 		   center=#vector{x=0, y=0, z=30},
-		   colour=#colour{r=0, g=0, b=30}},
+		   colour=#colour{r=0, g=0, b=0.09}},
     Sphere4=#sphere{radius=5,
 		   center=#vector{x=0, y=0, z=-10},
-		   colour=#colour{r=0, g=0, b=-10}},
+		   colour=#colour{r=0, g=0, b=-0.4}},
     Scene1=[Sphere1, Sphere2, Sphere3, Sphere4],
     Ray1=#ray{origin=#vector{x=0, y=0, z=0},
 	      direction=#vector{x=0, y=0, z=1}},
@@ -719,13 +718,14 @@ vector_rotation_test() ->
 
 point_light_intensity_test() ->
     io:format("point light intensity test", []),
-    Light1 = #point_light{colour=#colour{r=255, g=255, b=200},
+    Light1 = #point_light{colour=#colour{r=1, g=1, b=0.7},
 			  diffuse_scale=7,
 			  location=#vector{x=0, y=0, z=0}},
     Hit_normal1 = #vector{x=1, y=0, z=0},
     Hit_location1 = #vector{x=-1, y=0, z=0},
 
-    Subtest1 = point_light_intensity(Light1, Hit_normal1, Hit_location1) == #colour{r=255, g=255, b=200},
+    Subtest1 = point_light_intensity(Light1, Hit_normal1, Hit_location1)
+	== Light1#point_light.colour,
     
     Subtest1.
 
