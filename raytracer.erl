@@ -54,20 +54,16 @@ lighting_function(Object, Hit_location, Hit_normal, Scene) ->
 			location=Light_location},
 	   Final_colour) ->
 	      vector_add(
-		vector_add(
-		  vector_scalar_mult(
-		    colour_to_vector(
-		      point_light_intensity(
-			#point_light{colour=Light_colour,
-				     diffuse_scale=Diffuse_scale,
-				     location=Light_location},
-			Hit_normal,
-			Hit_location)),
-		    Diffuse_scale),
-		  colour_to_vector(object_colour(Object))),
+		vector_scalar_mult(
+		  colour_to_vector(object_colour(Object)),
+		  Diffuse_scale*lists:max([vector_dot_product(
+					     Hit_normal,
+					     vector_normalize(
+					       vector_sub(
+						 Light_location,
+						 Hit_location))), 0])),
 		Final_colour);
-
-	 (_Not_a_point_light, Final_colour) ->
+	  (_Not_a_point_light, Final_colour) ->
 	      Final_colour
       end,
       #vector{x=0, y=0, z=0},
