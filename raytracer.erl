@@ -36,7 +36,8 @@ trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
 	{Nearest_object, _Distance, Hit_location, Hit_normal} ->
 	    %io:format("hit: ~w~n", [{Nearest_object, _Distance}]),
 
-	      vector_to_colour(lighting_function(Nearest_object,
+	      vector_to_colour(lighting_function(Camera,
+						 Nearest_object,
 						 Hit_location,
 						 Hit_normal,
 						 Rest_of_scene));
@@ -46,7 +47,7 @@ trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
 	    ?ERROR_COLOUR
     end.
 
-lighting_function(Object, Hit_location, Hit_normal, Scene) ->
+lighting_function(Camera, Object, Hit_location, Hit_normal, Scene) ->
     lists:foldl(
       fun (#point_light{colour=Light_colour,
 			diffuse_scale=Diffuse_scale,
@@ -55,35 +56,25 @@ lighting_function(Object, Hit_location, Hit_normal, Scene) ->
 	      vector_add(
 		vector_component_mult(
 		  colour_to_vector(Light_colour),
-		vector_scalar_mult(
-		  colour_to_vector(object_colour(Object)),
-		  Diffuse_scale*lists:max([vector_dot_product(
-					     Hit_normal,
-					     vector_normalize(
-					       vector_sub(
-						 Light_location,
-						 Hit_location))), 0]))),
+		  diffuse_term(Object,
+			       Light_location,
+			       Hit_location,
+			       Hit_normal)),
 		Final_colour);
 	  (_Not_a_point_light, Final_colour) ->
 	      Final_colour
       end,
       #vector{x=0, y=0, z=0},
       Scene).
-    
-point_light_intensity(
-  #point_light{colour=Light_colour,
-	       location=Light_location},
-  Hit_normal,
-  Hit_location) ->
-    vector_to_colour(
-      vector_scalar_mult(
-	colour_to_vector(Light_colour),
-	lists:max([0,
-		   vector_dot_product(
-		     Hit_normal,
-		     vector_normalize(
-		       vector_sub(Light_location,
-				  Hit_location)))]))).
+
+diffuse_term(Object, Light_location, Hit_location, Hit_normal) ->
+    vector_scalar_mult(
+      colour_to_vector(object_diffuse_colour(Object)),
+      lists:max([0,
+		 vector_dot_product(Hit_normal,
+				    vector_normalize(
+				      vector_sub(Light_location,
+						 Hit_location)))])).
 
 nearest_object_intersecting_ray(Ray, Scene) ->
     nearest_object_intersecting_ray(
@@ -252,9 +243,9 @@ vector_rotate(V1, _V2) ->
     %TODO: implement using quaternions
     V1.
 
-object_colour(#sphere{ colour=C}) ->
+object_diffuse_colour(#sphere{ colour=C}) ->
     C;
-object_colour(_Unknown) ->
+object_diffuse_colour(_Unknown) ->
     ?UNKNOWN_COLOUR.
 
 point_on_sphere(#sphere{radius=Radius, center=#vector{x=XC, y=YC, z=ZC}},
@@ -383,7 +374,6 @@ run_tests() ->
 	     fun nearest_object_intersecting_ray_test/0,
 	     fun focal_length_test/0,
 	     fun vector_rotation_test/0,
-	     fun point_light_intensity_test/0,
 	     fun object_normal_at_point_test/0
 	    ],
     run_tests(Tests, 1, true).
@@ -720,19 +710,6 @@ vector_rotation_test() ->
 		 vector_rotate(Vector2, Vector3)),
     
     Subtest1 and Subtest2 and Subtest3 and Subtest4.
-
-point_light_intensity_test() ->
-    io:format("point light intensity test", []),
-    Light1 = #point_light{colour=#colour{r=1, g=1, b=0.7},
-			  diffuse_scale=7,
-			  location=#vector{x=0, y=0, z=0}},
-    Hit_normal1 = #vector{x=1, y=0, z=0},
-    Hit_location1 = #vector{x=-1, y=0, z=0},
-
-    Subtest1 = point_light_intensity(Light1, Hit_normal1, Hit_location1)
-	== Light1#point_light.colour,
-    
-    Subtest1.
 
 object_normal_at_point_test() ->
     io:format("object normal at point test"),
