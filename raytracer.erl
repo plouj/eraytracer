@@ -1,3 +1,40 @@
+
+%%  raytracer.erl
+
+%%  a simple raytracer written in Erlang
+
+%%  Copyright (c) 2008 Michael Ploujnikov
+
+%%      This program is free software: you can redistribute it and/or modify
+%%      it under the terms of the GNU General Public License as published by
+%%      the Free Software Foundation, either version 2 of the License, or
+%%      (at your option) any later version.
+
+%%      This program is distributed in the hope that it will be useful,
+%%      but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%      MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%      GNU General Public License for more details.
+
+%%      You should have received a copy of the GNU General Public License
+%%      along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+%%  Features:
+%%  * two object types:
+%%   * spheres
+%%   * triangles (not done)
+%%  * point lights
+%%  * shadows (not done)
+%%  * lighting based on local illumination models
+%%   * ambient (not done)
+%%   * diffuse
+%%   * specular
+%%   * attenuation (not done)
+%%  * reflections to a fixed depth (not done)
+%%  * PPM output file format
+%%  * randomly generated scene (not done)
+
+
+
 -module(raytracer).
 -compile(export_all).
 
