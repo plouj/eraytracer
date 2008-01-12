@@ -6,8 +6,8 @@
 -record(ray, {origin, direction}).
 -record(screen, {width, height}). % screen dimensions in the 3D world
 -record(camera, {location, rotation, fov, screen}).
--record(sphere, {radius, center, colour}).
--record(point_light, {colour, diffuse_scale, location}).
+-record(sphere, {radius, center, colour, specular_power, shininess}).
+-record(point_light, {diffuse_colour, location, specular_colour}).
 %-record(axis_aligned_cube, {size, location}).
 -define(BACKGROUND_COLOUR, #colour{r=0, g=0, b=0}).
 -define(ERROR_COLOUR, #colour{r=1, g=0, b=0}).
@@ -36,7 +36,7 @@ trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
 	{Nearest_object, _Distance, Hit_location, Hit_normal} ->
 	    %io:format("hit: ~w~n", [{Nearest_object, _Distance}]),
 
-	      vector_to_colour(lighting_function(Camera,
+	      vector_to_colour(lighting_function(Ray,
 						 Nearest_object,
 						 Hit_location,
 						 Hit_normal,
@@ -47,19 +47,27 @@ trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
 	    ?ERROR_COLOUR
     end.
 
-lighting_function(Camera, Object, Hit_location, Hit_normal, Scene) ->
+lighting_function(Ray, Object, Hit_location, Hit_normal, Scene) ->
     lists:foldl(
-      fun (#point_light{colour=Light_colour,
-			diffuse_scale=Diffuse_scale,
-			location=Light_location},
+      fun (#point_light{diffuse_colour=Light_colour,
+			location=Light_location,
+			specular_colour=Specular_colour},
 	   Final_colour) ->
 	      vector_add(
 		vector_component_mult(
 		  colour_to_vector(Light_colour),
-		  diffuse_term(Object,
-			       Light_location,
-			       Hit_location,
-			       Hit_normal)),
+		  vector_add(
+		    diffuse_term(Object,
+				 Light_location,
+				 Hit_location,
+				 Hit_normal),
+		    specular_term(Ray#ray.direction,
+				  Light_location,
+				  Hit_location,
+				  Hit_normal,
+				 object_specular_power(Object),
+				 object_shininess(Object),
+				 Specular_colour))),
 		Final_colour);
 	  (_Not_a_point_light, Final_colour) ->
 	      Final_colour
@@ -75,6 +83,20 @@ diffuse_term(Object, Light_location, Hit_location, Hit_normal) ->
 				    vector_normalize(
 				      vector_sub(Light_location,
 						 Hit_location)))])).
+
+specular_term(EyeVector, Light_location, Hit_location, Hit_normal,
+	     Specular_power, Shininess, Specular_colour) ->
+	    vector_scalar_mult(
+	      colour_to_vector(Specular_colour),
+	      Shininess*math:pow(
+		lists:max([0,
+			   vector_dot_product(
+			     vector_normalize(
+			       vector_add(
+				 vector_normalize(
+				   vector_sub(Light_location, Hit_location)),
+				 vector_neg(EyeVector))),
+			     Hit_normal)]), Specular_power)).
 
 nearest_object_intersecting_ray(Ray, Scene) ->
     nearest_object_intersecting_ray(
@@ -243,10 +265,14 @@ vector_rotate(V1, _V2) ->
     %TODO: implement using quaternions
     V1.
 
-object_diffuse_colour(#sphere{ colour=C}) ->
+object_diffuse_colour(#sphere{colour=C}) ->
     C;
 object_diffuse_colour(_Unknown) ->
     ?UNKNOWN_COLOUR.
+object_specular_power(#sphere{specular_power=SP}) ->
+    SP.
+object_shininess(#sphere{shininess=S}) ->
+    S.
 
 point_on_sphere(#sphere{radius=Radius, center=#vector{x=XC, y=YC, z=ZC}},
 		#vector{x=X, y=Y, z=Z}) ->
@@ -270,18 +296,27 @@ scene() ->
 	     rotation=#vector{x=0, y=0, z=0},
 	     fov=90,
 	     screen=#screen{width=4, height=3}},
-     #point_light{colour=#colour{r=1, g=1, b=0.5},
-		  diffuse_scale=1,
-		  location=#vector{x=5, y=-2, z=0}},
+     #point_light{diffuse_colour=#colour{r=1, g=1, b=0.5},
+		  location=#vector{x=5, y=-2, z=0},
+		  specular_colour=#colour{r=1, g=1, b=1}},
+     #point_light{diffuse_colour=#colour{r=1, g=0, b=0.5},
+		  location=#vector{x=-10, y=0, z=7},
+		  specular_colour=#colour{r=1, g=0, b=0.5}},
      #sphere{radius=4,
 	     center=#vector{x=0, y=0, z=7},
-	     colour=#colour{r=0, g=0.5, b=1}},
+	     colour=#colour{r=0, g=0.5, b=1},
+	     specular_power=20,
+	     shininess=1},
      #sphere{radius=4,
 	     center=#vector{x=-5, y=3, z=9},
-	     colour=#colour{r=1, g=0.5, b=0}},
+	     colour=#colour{r=1, g=0.5, b=0},
+	     specular_power=4,
+	     shininess=0.25},
      #sphere{radius=4,
 	     center=#vector{x=-5, y=-2, z=10},
-	     colour=#colour{r=0.5, g=1, b=0}}
+	     colour=#colour{r=0.5, g=1, b=0},
+	     specular_power=20,
+	     shininess=0.25}
     ].
 
 
@@ -328,20 +363,30 @@ scene_test() ->
 	  {screen, 4, 3}},
 	 {point_light,
 	  {colour, 1, 1, 0.5},
-	  1,
-	  {vector, 5, -2, 0}},
+	  {vector, 5, -2, 0},
+	  {colour, 1, 1, 1}},
+	 {point_light,
+	  {colour, 1, 0, 0.5},
+	  {vector, -10, 0, 7},
+	  {colour, 1, 0, 0.5}},
 	 {sphere,
 	  4,
 	  {vector, 0, 0, 7},
-	  {colour, 0, 0.5, 1}},
+	  {colour, 0, 0.5, 1},
+	  20,
+	  1},
 	 {sphere,
 	  4,
 	  {vector, -5, 3, 9},
-	  {colour, 1, 0.5, 0}},
+	  {colour, 1, 0.5, 0},
+	  4,
+	  0.25},
 	 {sphere,
 	  4,
 	  {vector, -5, -2, 10},
-	  {colour, 0.5, 1, 0}}] ->
+	  {colour, 0.5, 1, 0},
+	  20,
+	  0.25}] ->
 	    true;
 _Else ->
 	    false
