@@ -368,9 +368,9 @@ write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
 	    lists:foreach(
 	      fun({R, G, B}) ->
 		      io:format(IoDevice, "~p ~p ~p ",
-				[trunc(R*MaxValue),
-				 trunc(G*MaxValue),
-				 trunc(B*MaxValue)]) end,
+				[lists:min([trunc(R*MaxValue), MaxValue]),
+				 lists:min([trunc(G*MaxValue), MaxValue]),
+				 lists:min([trunc(B*MaxValue), MaxValue])]) end,
 	      Pixels),
 	    file:close(IoDevice),
 	    io:format("done~n", []);
