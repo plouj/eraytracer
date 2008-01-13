@@ -43,9 +43,9 @@
 -record(ray, {origin, direction}).
 -record(screen, {width, height}). % screen dimensions in the 3D world
 -record(camera, {location, rotation, fov, screen}).
--record(sphere, {radius, center, colour, specular_power, shininess}).
+-record(material, {colour, specular_power, shininess}).
+-record(sphere, {radius, center, material}).
 -record(point_light, {diffuse_colour, location, specular_colour}).
-%-record(axis_aligned_cube, {size, location}).
 -define(BACKGROUND_COLOUR, #colour{r=0, g=0, b=0}).
 -define(ERROR_COLOUR, #colour{r=1, g=0, b=0}).
 -define(UNKNOWN_COLOUR, #colour{r=0, g=1, b=0}).
@@ -302,13 +302,13 @@ vector_rotate(V1, _V2) ->
     %TODO: implement using quaternions
     V1.
 
-object_diffuse_colour(#sphere{colour=C}) ->
+object_diffuse_colour(#sphere{material=#material{colour=C}}) ->
     C;
 object_diffuse_colour(_Unknown) ->
     ?UNKNOWN_COLOUR.
-object_specular_power(#sphere{specular_power=SP}) ->
+object_specular_power(#sphere{material=#material{specular_power=SP}}) ->
     SP.
-object_shininess(#sphere{shininess=S}) ->
+object_shininess(#sphere{material=#material{shininess=S}}) ->
     S.
 
 point_on_sphere(#sphere{radius=Radius, center=#vector{x=XC, y=YC, z=ZC}},
@@ -341,19 +341,22 @@ scene() ->
 		  specular_colour=#colour{r=1, g=0, b=0.5}},
      #sphere{radius=4,
 	     center=#vector{x=0, y=0, z=7},
-	     colour=#colour{r=0, g=0.5, b=1},
-	     specular_power=20,
-	     shininess=1},
+	     material=#material{
+	       colour=#colour{r=0, g=0.5, b=1},
+	       specular_power=20,
+	       shininess=1}},
      #sphere{radius=4,
 	     center=#vector{x=-5, y=3, z=9},
-	     colour=#colour{r=1, g=0.5, b=0},
-	     specular_power=4,
-	     shininess=0.25},
+	     material=#material{
+	       colour=#colour{r=1, g=0.5, b=0},
+	       specular_power=4,
+	       shininess=0.25}},
      #sphere{radius=4,
 	     center=#vector{x=-5, y=-2, z=10},
-	     colour=#colour{r=0.5, g=1, b=0},
-	     specular_power=20,
-	     shininess=0.25}
+	     material=#material{
+	       colour=#colour{r=0.5, g=1, b=0},
+	       specular_power=20,
+	       shininess=0.25}}
     ].
 
 
@@ -409,21 +412,16 @@ scene_test() ->
 	 {sphere,
 	  4,
 	  {vector, 0, 0, 7},
-	  {colour, 0, 0.5, 1},
-	  20,
-	  1},
+	  {material, {colour, 0, 0.5, 1}, 20, 1}},
 	 {sphere,
 	  4,
 	  {vector, -5, 3, 9},
-	  {colour, 1, 0.5, 0},
-	  4,
-	  0.25},
+	  {material, {colour, 1, 0.5, 0}, 4, 0.25}},
 	 {sphere,
 	  4,
 	  {vector, -5, -2, 10},
-	  {colour, 0.5, 1, 0},
-	  20,
-	  0.25}] ->
+	  {material, {colour, 0.5, 1, 0}, 20, 0.25}}
+	] ->
 	    true;
 _Else ->
 	    false
@@ -674,7 +672,8 @@ ray_sphere_intersection_test() ->
     Sphere = #sphere{
       radius=3,
       center=#vector{x = 0, y=0, z=10},
-      colour=#colour{r=0.4, g=0.4, b=0.4}},
+      material=#material{
+      colour=#colour{r=0.4, g=0.4, b=0.4}}},
     Ray1 = #ray{
       origin=#vector{x=0, y=0, z=0},
       direction=#vector{x=0, y=0, z=1}},
@@ -728,17 +727,21 @@ nearest_object_intersecting_ray_test() ->
     io:format("nearest object intersecting ray test", []),
     % test to make sure that we really get the closest object
     Sphere1=#sphere{radius=5,
-		   center=#vector{x=0, y=0, z=10},
-		   colour=#colour{r=0, g=0, b=0.03}},
+		    center=#vector{x=0, y=0, z=10},
+		    material=#material{
+		      colour=#colour{r=0, g=0, b=0.03}}},
     Sphere2=#sphere{radius=5,
-		   center=#vector{x=0, y=0, z=20},
-		   colour=#colour{r=0, g=0, b=0.06}},
+		    center=#vector{x=0, y=0, z=20},
+		    material=#material{
+		      colour=#colour{r=0, g=0, b=0.06}}},
     Sphere3=#sphere{radius=5,
-		   center=#vector{x=0, y=0, z=30},
-		   colour=#colour{r=0, g=0, b=0.09}},
+		    center=#vector{x=0, y=0, z=30},
+		    material=#material{
+		      colour=#colour{r=0, g=0, b=0.09}}},
     Sphere4=#sphere{radius=5,
-		   center=#vector{x=0, y=0, z=-10},
-		   colour=#colour{r=0, g=0, b=-0.4}},
+		    center=#vector{x=0, y=0, z=-10},
+		    material=#material{
+		      colour=#colour{r=0, g=0, b=-0.4}}},
     Scene1=[Sphere1, Sphere2, Sphere3, Sphere4],
     Ray1=#ray{origin=#vector{x=0, y=0, z=0},
 	      direction=#vector{x=0, y=0, z=1}},
@@ -797,7 +800,8 @@ object_normal_at_point_test() ->
     io:format("object normal at point test"),
     Sphere1 = #sphere{radius=13.5,
 		      center=#vector{x=0, y=0, z=0},
-		      colour=#colour{r=0, g=0, b=0}},
+		      material=#material{
+			colour=#colour{r=0, g=0, b=0}}},
     Point1 = #vector{x=13.5, y=0, z=0},
     Point2 = #vector{x=0, y=13.5, z=0},
     Point3 = #vector{x=0, y=0, z=13.5},
