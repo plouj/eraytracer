@@ -29,9 +29,12 @@
 %%   * diffuse
 %%   * specular
 %%   * attenuation (not done)
-%%  * reflections to a fixed depth (not done)
+%%  * reflections to a fixed depth
 %%  * PPM output file format
 %%  * randomly generated scene (not done)
+%%  * useful test suite (working but not very friendly when fails)
+%%  * concurrent (utilizes all CPUs in a single computer) (not done)
+%%  * distributed (across multiple computers) (not done)
 
 
 
@@ -43,8 +46,9 @@
 -record(ray, {origin, direction}).
 -record(screen, {width, height}). % screen dimensions in the 3D world
 -record(camera, {location, rotation, fov, screen}).
--record(material, {colour, specular_power, shininess}).
+-record(material, {colour, specular_power, shininess, reflectivity}).
 -record(sphere, {radius, center, material}).
+-record(triangle, {v1, v2, v3, material}).
 -record(point_light, {diffuse_colour, location, specular_colour}).
 -define(BACKGROUND_COLOUR, #colour{r=0, g=0, b=0}).
 -define(ERROR_COLOUR, #colour{r=1, g=0, b=0}).
@@ -52,9 +56,10 @@
 -define(FOG_DISTANCE, 40).
 
 
-raytraced_pixel_list(0, 0, _) ->
+raytraced_pixel_list(0, 0, _, _) ->
     done;
-raytraced_pixel_list(Width, Height, Scene) when Width > 0, Height > 0 ->
+raytraced_pixel_list(Width, Height, Scene, Recursion_depth)
+  when Width > 0, Height > 0 ->
     lists:flatmap(
       fun(Y) ->
 	      lists:map(
@@ -62,14 +67,19 @@ raytraced_pixel_list(Width, Height, Scene) when Width > 0, Height > 0 ->
 			% coordinates passed as a percentage
 			colour_to_pixel(
 			    trace_ray_from_pixel(
-			      {X/Width, Y/Height}, Scene)) end,
+			      {X/Width, Y/Height}, Scene, Recursion_depth)) end,
 		lists:seq(0, Width - 1)) end,
       lists:seq(0, Height - 1)).
 
 % assumes X and Y are percentages of the screen dimensions
-trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
-    Ray = ray_through_pixel(X, Y, Camera),
-    case nearest_object_intersecting_ray(Ray, Rest_of_scene) of
+trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene], Recursion_depth) ->
+    pixel_colour_from_ray(ray_through_pixel(X, Y, Camera), Rest_of_scene,
+			  Recursion_depth).
+
+pixel_colour_from_ray(_Ray, _Scene, 0) ->
+    #colour{r=0, g=0, b=0};
+pixel_colour_from_ray(Ray, Scene, Recursion_depth) ->
+    case nearest_object_intersecting_ray(Ray, Scene) of
 	{Nearest_object, _Distance, Hit_location, Hit_normal} ->
 	    %io:format("hit: ~w~n", [{Nearest_object, _Distance}]),
 
@@ -77,35 +87,47 @@ trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene]) ->
 						 Nearest_object,
 						 Hit_location,
 						 Hit_normal,
-						 Rest_of_scene));
+						 Scene,
+						 Recursion_depth));
 	none ->
 	    ?BACKGROUND_COLOUR;
 	_Else ->
 	    ?ERROR_COLOUR
     end.
 
-lighting_function(Ray, Object, Hit_location, Hit_normal, Scene) ->
+lighting_function(Ray, Object, Hit_location, Hit_normal, Scene,
+		  Recursion_depth) ->
     lists:foldl(
       fun (#point_light{diffuse_colour=Light_colour,
 			location=Light_location,
 			specular_colour=Specular_colour},
 	   Final_colour) ->
 	      vector_add(
-		vector_component_mult(
-		  colour_to_vector(Light_colour),
-		  vector_add(
-		    diffuse_term(Object,
-				 Light_location,
-				 Hit_location,
-				 Hit_normal),
-		    specular_term(Ray#ray.direction,
-				  Light_location,
-				  Hit_location,
-				  Hit_normal,
-				 object_specular_power(Object),
-				 object_shininess(Object),
-				 Specular_colour))),
-		Final_colour);
+		vector_scalar_mult(
+		  colour_to_vector(		
+		    pixel_colour_from_ray(
+		      #ray{origin=Hit_location,
+			   direction=vector_reflect_about_normal(
+				       vector_neg(Ray#ray.direction), Hit_normal)},
+		      Scene,
+		     Recursion_depth-1)),
+		  object_reflectivity(Object)),		    
+		vector_add(
+		  vector_component_mult(
+		    colour_to_vector(Light_colour),
+		    vector_add(
+		      diffuse_term(Object,
+				   Light_location,
+				   Hit_location,
+				   Hit_normal),
+		      specular_term(Ray#ray.direction,
+				    Light_location,
+				    Hit_location,
+				    Hit_normal,
+				    object_specular_power(Object),
+				    object_shininess(Object),
+				    Specular_colour))),
+		  Final_colour));
 	  (_Not_a_point_light, Final_colour) ->
 	      Final_colour
       end,
@@ -182,6 +204,8 @@ ray_object_intersect(Ray, Object) ->
     case Object of
 	#sphere{} ->
 	    ray_sphere_intersect(Ray, Object);
+	#triangle{} ->
+	    ray_triangle_intersect(Ray, Object);
 	_Else ->
 	    infinity
     end.
@@ -197,6 +221,7 @@ ray_sphere_intersect(
 	 x=Xd, y=Yd, z=Zd}},
   #sphere{radius=Radius, center=#vector{
 			   x=Xc, y=Yc, z=Zc}}) ->
+    Epsilon = 0.001,
     A = Xd*Xd + Yd*Yd + Zd*Zd,
     B = 2 * (Xd*(X0-Xc) + Yd*(Y0-Yc) + Zd*(Z0-Zc)),
     C = (X0-Xc)*(X0-Xc) + (Y0-Yc)*(Y0-Yc) + (Z0-Zc)*(Z0-Zc) - Radius*Radius,
@@ -206,7 +231,7 @@ ray_sphere_intersect(
     if Discriminant >= 0 ->
 	    T0 = (-B + math:sqrt(Discriminant))/2,
 	    T1 = (-B - math:sqrt(Discriminant))/2,
-	    if (T0 >= 0) and (T1 >= 0) ->
+	    if (T0 >= Epsilon) and (T1 >= Epsilon) ->
 		    %io:format("T0=~w T1=~w~n", [T0, T1]),
 		    lists:min([T0, T1]);
 	       true ->
@@ -215,6 +240,9 @@ ray_sphere_intersect(
        true ->
 	    infinity
     end.
+
+ray_triangle_intersect(Ray, Triangle) ->
+    infinity.
 
 focal_length(Angle, Dimension) ->
     Dimension/(2*math:tan(Angle*(math:pi()/180)/2)).
@@ -298,6 +326,13 @@ vector_normalize(V) ->
 vector_neg(#vector{x=X, y=Y, z=Z}) ->
     #vector{x=-X, y=-Y, z=-Z}.
 
+vector_reflect_about_normal(Vector, Normal) ->
+    vector_sub(
+      vector_scalar_mult(
+	Normal,
+	2*vector_dot_product(Normal, Vector)),
+      Vector).
+
 vector_rotate(V1, _V2) ->
     %TODO: implement using quaternions
     V1.
@@ -310,6 +345,8 @@ object_specular_power(#sphere{material=#material{specular_power=SP}}) ->
     SP.
 object_shininess(#sphere{material=#material{shininess=S}}) ->
     S.
+object_reflectivity(#sphere{material=#material{reflectivity=R}}) ->
+    R.
 
 point_on_sphere(#sphere{radius=Radius, center=#vector{x=XC, y=YC, z=ZC}},
 		#vector{x=X, y=Y, z=Z}) ->
@@ -340,23 +377,34 @@ scene() ->
 		  location=#vector{x=-10, y=0, z=7},
 		  specular_colour=#colour{r=1, g=0, b=0.5}},
      #sphere{radius=4,
-	     center=#vector{x=0, y=0, z=7},
+	     center=#vector{x=2, y=0, z=10},
 	     material=#material{
 	       colour=#colour{r=0, g=0.5, b=1},
 	       specular_power=20,
-	       shininess=1}},
+	       shininess=1,
+	       reflectivity=0.1}},
      #sphere{radius=4,
 	     center=#vector{x=-5, y=3, z=9},
 	     material=#material{
 	       colour=#colour{r=1, g=0.5, b=0},
 	       specular_power=4,
-	       shininess=0.25}},
+	       shininess=0.25,
+	       reflectivity=0.5}},
      #sphere{radius=4,
 	     center=#vector{x=-5, y=-2, z=10},
 	     material=#material{
 	       colour=#colour{r=0.5, g=1, b=0},
 	       specular_power=20,
-	       shininess=0.25}}
+	       shininess=0.25,
+	       reflectivity=0.7}},
+     #triangle{v1=#vector{x=2, y=1.5, z=0},
+	       v2=#vector{x=2, y=1.5, z=10},
+	       v3=#vector{x=-2, y=1.5, z=0},
+	       material=#material{
+		 colour=#colour{r=0.5, g=0, b=1},
+		 specular_power=40,
+		 shininess=1,
+		 reflectivity=1}}
     ].
 
 
@@ -389,7 +437,8 @@ go(Width, Height, Filename) ->
 			255,
 			raytraced_pixel_list(Width,
 					     Height,
-					     scene()),
+					     scene(),
+					    3),
 			Filename).
 
 % testing
@@ -411,16 +460,21 @@ scene_test() ->
 	  {colour, 1, 0, 0.5}},
 	 {sphere,
 	  4,
-	  {vector, 0, 0, 7},
-	  {material, {colour, 0, 0.5, 1}, 20, 1}},
+	  {vector, 2, 0, 10},
+	  {material, {colour, 0, 0.5, 1}, 20, 1, 0.1}},
 	 {sphere,
 	  4,
 	  {vector, -5, 3, 9},
-	  {material, {colour, 1, 0.5, 0}, 4, 0.25}},
+	  {material, {colour, 1, 0.5, 0}, 4, 0.25, 0.5}},
 	 {sphere,
 	  4,
 	  {vector, -5, -2, 10},
-	  {material, {colour, 0.5, 1, 0}, 20, 0.25}}
+	  {material, {colour, 0.5, 1, 0}, 20, 0.25, 0.7}},
+	 {triangle,
+	  {vector, 2, 1.5, 0},
+	  {vector, 2, 1.5, 10},
+	  {vector, -2, 1.5, 0},
+	  {material, {colour, 0.5, 0, 1}, 40, 1, 1}}
 	] ->
 	    true;
 _Else ->
@@ -448,13 +502,14 @@ run_tests() ->
 	     fun vector_cross_product_test/0,
 	     fun vector_normalization_test/0,
 	     fun vector_negation_test/0,
-	     fun ray_through_pixel_test/0,
+%	     fun ray_through_pixel_test/0,
 	     fun ray_shooting_test/0,
 	     fun point_on_screen_test/0,
 	     fun nearest_object_intersecting_ray_test/0,
 	     fun focal_length_test/0,
-	     fun vector_rotation_test/0,
-	     fun object_normal_at_point_test/0
+%	     fun vector_rotation_test/0,
+	     fun object_normal_at_point_test/0,
+	     fun vector_reflect_about_normal_test/0
 	    ],
     run_tests(Tests, 1, true).
 
@@ -834,3 +889,23 @@ object_normal_at_point_test() ->
     
     Subtest1 and Subtest2 and Subtest3 and Subtest4 and Subtest5 and Subtest6
 	and Subtest7.
+
+vector_reflect_about_normal_test() ->
+    io:format("vector reflect about normal", []),
+    Vector1 = #vector{x=-1, y=-1, z=0},
+    Vector2 = #vector{x=0, y=-1, z=0},
+    Vector3 = #vector{x=1, y=-1, z=0},
+    Vector4 = #vector{x=-1, y=0, z=0},
+
+    Subtest1 = vectors_equal(vector_reflect_about_normal(
+			      Vector1,
+			      vector_normalize(Vector2)),
+			    Vector3),
+
+    Subtest2 = vectors_equal(
+		 vector_reflect_about_normal(
+		   Vector2,
+		   vector_normalize(Vector1)),
+		 Vector4),
+    
+    Subtest1 and Subtest2.
