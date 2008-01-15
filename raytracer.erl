@@ -108,7 +108,7 @@ lighting_function(Ray, Object, Hit_location, Hit_normal, Scene,
 		    pixel_colour_from_ray(
 		      #ray{origin=Hit_location,
 			   direction=vector_reflect_about_normal(
-				       vector_neg(Ray#ray.direction), Hit_normal)},
+				       Ray#ray.direction, Hit_normal)},
 		      Scene,
 		     Recursion_depth-1)),
 		  object_reflectivity(Object)),		    
@@ -330,8 +330,8 @@ vector_reflect_about_normal(Vector, Normal) ->
     vector_sub(
       vector_scalar_mult(
 	Normal,
-	2*vector_dot_product(Normal, Vector)),
-      Vector).
+	2*vector_dot_product(Normal, vector_neg(Vector))),
+      vector_neg(Vector)).
 
 vector_rotate(V1, _V2) ->
     %TODO: implement using quaternions
@@ -886,10 +886,10 @@ object_normal_at_point_test() ->
 
 vector_reflect_about_normal_test() ->
     io:format("vector reflect about normal", []),
-    Vector1 = #vector{x=-1, y=-1, z=0},
+    Vector1 = #vector{x=1, y=1, z=0},
     Vector2 = #vector{x=0, y=-1, z=0},
     Vector3 = #vector{x=1, y=-1, z=0},
-    Vector4 = #vector{x=-1, y=0, z=0},
+    Vector4 = #vector{x=1, y=0, z=0},
 
     Subtest1 = vectors_equal(vector_reflect_about_normal(
 			      Vector1,
