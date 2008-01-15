@@ -327,11 +327,11 @@ vector_neg(#vector{x=X, y=Y, z=Z}) ->
     #vector{x=-X, y=-Y, z=-Z}.
 
 vector_reflect_about_normal(Vector, Normal) ->
-    vector_sub(
+    vector_add(
       vector_scalar_mult(
 	Normal,
 	2*vector_dot_product(Normal, vector_neg(Vector))),
-      vector_neg(Vector)).
+      Vector).
 
 vector_rotate(V1, _V2) ->
     %TODO: implement using quaternions
