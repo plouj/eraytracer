@@ -39,7 +39,7 @@
 
 
 -module(raytracer).
--export([go/0, go/4, run_tests/0]).
+-export([go/0, go/4, run_tests/0, master/2, trace_ray_from_pixel/5]).
 
 -record(vector, {x, y, z}).
 -record(colour, {r, g, b}).
@@ -60,21 +60,37 @@ raytraced_pixel_list(0, 0, _, _) ->
     done;
 raytraced_pixel_list(Width, Height, Scene, Recursion_depth)
   when Width > 0, Height > 0 ->
+    Master_PID = spawn(raytracer, master, [self(), Width*Height]),
     lists:flatmap(
       fun(Y) ->
 	      lists:map(
 		fun(X) ->
 			% coordinates passed as a percentage
-			colour_to_pixel(
-			    trace_ray_from_pixel(
-			      {X/Width, Y/Height}, Scene, Recursion_depth)) end,
+			spawn(raytracer, trace_ray_from_pixel,
+			  [Master_PID, X+Y*Width, {X/Width, Y/Height}, Scene, Recursion_depth]) end,
 		lists:seq(0, Width - 1)) end,
-      lists:seq(0, Height - 1)).
+      lists:seq(0, Height - 1)),
+    io:format("all workers have been spawned~n", []),
+    receive
+	Final_pixel_list ->
+	    Final_pixel_list
+    end.
+
+master(Program_PID, Pixel_count) ->
+    master(Program_PID, Pixel_count, []).
+master(Program_PID, 0, Pixel_list) ->
+    io:format("master is done~n", []),
+    Program_PID ! lists:keysort(1, Pixel_list);
+master(Program_PID, Pixel_count, Pixel_list) ->
+    receive
+	Pixel_tuple ->
+	    master(Program_PID, Pixel_count-1, [Pixel_tuple|Pixel_list])
+    end.
+    
 
 % assumes X and Y are percentages of the screen dimensions
-trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene], Recursion_depth) ->
-    pixel_colour_from_ray(ray_through_pixel(X, Y, Camera), Rest_of_scene,
-			  Recursion_depth).
+trace_ray_from_pixel(Master_PID, Pixel_num, {X, Y}, [Camera|Rest_of_scene], Recursion_depth) ->
+    Master_PID ! {Pixel_num, colour_to_pixel(pixel_colour_from_ray(ray_through_pixel(X, Y, Camera), Rest_of_scene, Recursion_depth))}.
 
 pixel_colour_from_ray(_Ray, _Scene, 0) ->
     #colour{r=0, g=0, b=0};
@@ -415,7 +431,7 @@ write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
 	    io:format(IoDevice, "~p ~p~n", [Width, Height]),
 	    io:format(IoDevice, "~p~n", [MaxValue]),
 	    lists:foreach(
-	      fun({R, G, B}) ->
+	      fun({_Num, {R, G, B}}) ->
 		      io:format(IoDevice, "~p ~p ~p ",
 				[lists:min([trunc(R*MaxValue), MaxValue]),
 				 lists:min([trunc(G*MaxValue), MaxValue]),
