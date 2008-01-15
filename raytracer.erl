@@ -39,7 +39,7 @@
 
 
 -module(raytracer).
--export([go/0, go/4, run_tests/0, master/2, trace_ray_from_pixel/5]).
+-export([go/0, go/4, run_tests/0, master/2, trace_ray_from_pixel/5, standalone_go/0]).
 
 -record(vector, {x, y, z}).
 -record(colour, {r, g, b}).
@@ -445,6 +445,9 @@ write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
 
 go() ->
     go(16, 12, "/tmp/traced.ppm", 3).
+standalone_go() ->
+    go(640, 480, "/tmp/traced.ppm", 10),
+    halt().
 go(Width, Height, Filename, Recursion_depth) ->
     write_pixels_to_ppm(Width,
 			Height,
