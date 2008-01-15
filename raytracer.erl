@@ -440,6 +440,31 @@ go(Width, Height, Filename, Recursion_depth) ->
 			Filename).
 
 % testing
+run_tests() ->
+    Tests = [fun scene_test/0,
+	     fun passing_test/0,
+	     fun vector_equality_test/0,
+	     fun vector_addition_test/0,
+	     fun vector_subtraction_test/0,
+	     fun vector_square_mag_test/0,
+	     fun vector_mag_test/0,
+	     fun vector_scalar_multiplication_test/0,
+	     fun vector_dot_product_test/0,
+	     fun vector_cross_product_test/0,
+	     fun vector_normalization_test/0,
+	     fun vector_negation_test/0,
+%	     fun ray_through_pixel_test/0,
+	     fun ray_shooting_test/0,
+	     fun point_on_screen_test/0,
+	     fun nearest_object_intersecting_ray_test/0,
+	     fun focal_length_test/0,
+%	     fun vector_rotation_test/0,
+	     fun object_normal_at_point_test/0,
+	     fun vector_bounce_off_plane_test/0,
+	     fun ray_sphere_intersection_test/0
+	    ],
+    run_tests(Tests, 1, true).
+
 scene_test() ->
     io:format("testing the scene function", []),
     case scene() of
@@ -482,31 +507,6 @@ _Else ->
 passing_test() ->
     io:format("this test always passes", []),
     true.
-
-run_tests() ->
-    Tests = [fun scene_test/0,
-	     fun passing_test/0,
-	     fun vector_equality_test/0,
-	     fun vector_addition_test/0,
-	     fun vector_subtraction_test/0,
-	     fun vector_square_mag_test/0,
-	     fun vector_mag_test/0,
-	     fun vector_scalar_multiplication_test/0,
-	     fun vector_dot_product_test/0,
-	     fun vector_cross_product_test/0,
-	     fun vector_normalization_test/0,
-	     fun vector_negation_test/0,
-%	     fun ray_through_pixel_test/0,
-	     fun ray_shooting_test/0,
-	     fun point_on_screen_test/0,
-	     fun nearest_object_intersecting_ray_test/0,
-	     fun focal_length_test/0,
-%	     fun vector_rotation_test/0,
-	     fun object_normal_at_point_test/0,
-	     fun vector_bounce_off_plane_test/0,
-	     fun ray_sphere_intersection_test/0
-	    ],
-    run_tests(Tests, 1, true).
 
 run_tests([], _Num, Success) ->
     case Success of
