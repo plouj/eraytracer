@@ -377,7 +377,7 @@ scene() ->
 		  location=#vector{x=-10, y=0, z=7},
 		  specular_colour=#colour{r=1, g=0, b=0.5}},
      #sphere{radius=4,
-	     center=#vector{x=2, y=0, z=10},
+	     center=#vector{x=4, y=0, z=10},
 	     material=#material{
 	       colour=#colour{r=0, g=0.5, b=1},
 	       specular_power=20,
@@ -460,7 +460,7 @@ scene_test() ->
 	  {colour, 1, 0, 0.5}},
 	 {sphere,
 	  4,
-	  {vector, 2, 0, 10},
+	  {vector, 4, 0, 10},
 	  {material, {colour, 0, 0.5, 1}, 20, 1, 0.1}},
 	 {sphere,
 	  4,
