@@ -39,7 +39,7 @@
 
 
 -module(raytracer).
--compile(export_all).
+-export([go/0, go/4, run_tests/0]).
 
 -record(vector, {x, y, z}).
 -record(colour, {r, g, b}).
@@ -231,7 +231,7 @@ ray_sphere_intersect(
     if Discriminant >= 0 ->
 	    T0 = (-B + math:sqrt(Discriminant))/2,
 	    T1 = (-B - math:sqrt(Discriminant))/2,
-	    if (T0 >= Epsilon) and (T1 >= Epsilon) ->
+	    if (T0 >= 0) and (T1 >= 0) ->
 		    %io:format("T0=~w T1=~w~n", [T0, T1]),
 		    lists:min([T0, T1]);
 	       true ->
@@ -360,8 +360,6 @@ vector_to_colour(#vector{x=X, y=Y, z=Z}) ->
     #colour{r=X, g=Y, b=Z}.
 colour_to_pixel(#colour{r=R, g=G, b=B}) ->
     {R, G, B}.
-colour_trunc(#colour{r=R, g=G, b=B}) ->
-    #colour{r=trunc(R), g=trunc(G), b=trunc(B)}.
 
 % returns a list of objects in the scene
 % camera is assumed to be the first element in the scene
@@ -430,15 +428,15 @@ write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
     end.
 
 go() ->
-    go(16, 12, "/tmp/traced.ppm").
-go(Width, Height, Filename) ->
+    go(16, 12, "/tmp/traced.ppm", 3).
+go(Width, Height, Filename, Recursion_depth) ->
     write_pixels_to_ppm(Width,
 			Height,
 			255,
 			raytraced_pixel_list(Width,
 					     Height,
 					     scene(),
-					    3),
+					    Recursion_depth),
 			Filename).
 
 % testing
@@ -481,10 +479,6 @@ _Else ->
 	    false
     end.
 
-failing_test() ->
-    io:format("this test always fails", []),
-    false.
-
 passing_test() ->
     io:format("this test always passes", []),
     true.
@@ -509,7 +503,8 @@ run_tests() ->
 	     fun focal_length_test/0,
 %	     fun vector_rotation_test/0,
 	     fun object_normal_at_point_test/0,
-	     fun vector_reflect_about_normal_test/0
+	     fun vector_reflect_about_normal_test/0,
+	     fun ray_sphere_intersection_test/0
 	    ],
     run_tests(Tests, 1, true).
 
@@ -724,6 +719,8 @@ ray_shooting_test() ->
     Subtest1.
 
 ray_sphere_intersection_test() ->
+    io:format("ray sphere intersection test", []),
+
     Sphere = #sphere{
       radius=3,
       center=#vector{x = 0, y=0, z=10},
@@ -738,12 +735,9 @@ ray_sphere_intersection_test() ->
     Ray3 = #ray{
       origin=#vector{x=4, y=0, z=0},
       direction=#vector{x=0, y=0, z=1}},
-    io:format("ray/sphere intersection=~w~n", [ray_sphere_intersect(Ray1, Sphere)]),
     Subtest1 = ray_sphere_intersect(Ray1, Sphere) == 7.0,
     Subtest2 = ray_sphere_intersect(Ray2, Sphere) == 10.0,
-    Subtest3 = ray_sphere_intersect(Ray3, Sphere) == none,
-    io:format("ray/sphere intersection=~w~n", [ray_sphere_intersect(Ray2, Sphere)]),
-    io:format("ray/sphere intersection=~w~n", [ray_sphere_intersect(Ray3, Sphere)]),
+    Subtest3 = ray_sphere_intersect(Ray3, Sphere) == infinity,
     Subtest1 and Subtest2 and Subtest3.
 
 point_on_screen_test() ->
