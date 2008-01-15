@@ -107,7 +107,7 @@ lighting_function(Ray, Object, Hit_location, Hit_normal, Scene,
 		  colour_to_vector(		
 		    pixel_colour_from_ray(
 		      #ray{origin=Hit_location,
-			   direction=vector_reflect_about_normal(
+			   direction=vector_bounce_off_plane(
 				       Ray#ray.direction, Hit_normal)},
 		      Scene,
 		     Recursion_depth-1)),
@@ -326,7 +326,7 @@ vector_normalize(V) ->
 vector_neg(#vector{x=X, y=Y, z=Z}) ->
     #vector{x=-X, y=-Y, z=-Z}.
 
-vector_reflect_about_normal(Vector, Normal) ->
+vector_bounce_off_plane(Vector, Normal) ->
     vector_add(
       vector_scalar_mult(
 	Normal,
@@ -503,7 +503,7 @@ run_tests() ->
 	     fun focal_length_test/0,
 %	     fun vector_rotation_test/0,
 	     fun object_normal_at_point_test/0,
-	     fun vector_reflect_about_normal_test/0,
+	     fun vector_bounce_off_plane_test/0,
 	     fun ray_sphere_intersection_test/0
 	    ],
     run_tests(Tests, 1, true).
@@ -884,20 +884,20 @@ object_normal_at_point_test() ->
     Subtest1 and Subtest2 and Subtest3 and Subtest4 and Subtest5 and Subtest6
 	and Subtest7.
 
-vector_reflect_about_normal_test() ->
+vector_bounce_off_plane_test() ->
     io:format("vector reflect about normal", []),
     Vector1 = #vector{x=1, y=1, z=0},
     Vector2 = #vector{x=0, y=-1, z=0},
     Vector3 = #vector{x=1, y=-1, z=0},
     Vector4 = #vector{x=1, y=0, z=0},
 
-    Subtest1 = vectors_equal(vector_reflect_about_normal(
+    Subtest1 = vectors_equal(vector_bounce_off_plane(
 			      Vector1,
 			      vector_normalize(Vector2)),
 			    Vector3),
 
     Subtest2 = vectors_equal(
-		 vector_reflect_about_normal(
+		 vector_bounce_off_plane(
 		   Vector2,
 		   vector_normalize(Vector1)),
 		 Vector4),
