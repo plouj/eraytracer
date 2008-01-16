@@ -437,8 +437,7 @@ write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
 				 lists:min([trunc(G*MaxValue), MaxValue]),
 				 lists:min([trunc(B*MaxValue), MaxValue])]) end,
 	      Pixels),
-	    file:close(IoDevice),
-	    io:format("done~n", []);
+	    file:close(IoDevice);
 	error ->
 	    io:format("error opening file~n", [])
     end.
@@ -446,7 +445,8 @@ write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
 go() ->
     go(16, 12, "/tmp/traced.ppm", 3).
 standalone_go() ->
-    go(640, 480, "/tmp/traced.ppm", 10),
+    {Time, _Value} = timer:tc(raytracer, go, [640, 480, "/tmp/traced.ppm", 10]),
+    io:format("Done in ~w seconds~n", [Time/1000000]),
     halt().
 go(Width, Height, Filename, Recursion_depth) ->
     write_pixels_to_ppm(Width,
