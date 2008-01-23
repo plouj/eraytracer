@@ -39,7 +39,17 @@
 
 
 -module(raytracer).
--export([go/0, go/4, run_tests/0, master/2, trace_ray_from_pixel/5, standalone_go/0]).
+-export([go/1,
+	 go_simple/0,
+	 go_concurrent/0,
+	 run_tests/0,
+	 master/2,
+	 worker/5,
+	 standalone_concurrent/0,
+	 standalone_simple/0,
+	 raytraced_pixel_list_simple/4,
+	 raytraced_pixel_list_concurrent/4
+	]).
 
 -record(vector, {x, y, z}).
 -record(colour, {r, g, b}).
@@ -55,10 +65,24 @@
 -define(UNKNOWN_COLOUR, #colour{r=0, g=1, b=0}).
 -define(FOG_DISTANCE, 40).
 
-
-raytraced_pixel_list(0, 0, _, _) ->
+raytraced_pixel_list_simple(0, 0, _, _) ->
     done;
-raytraced_pixel_list(Width, Height, Scene, Recursion_depth)
+raytraced_pixel_list_simple(Width, Height, Scene, Recursion_depth)
+  when Width > 0, Height > 0 ->
+    lists:flatmap(
+      fun(Y) ->
+	      lists:map(
+		fun(X) ->
+			% coordinates passed as a percentage
+			{1, colour_to_pixel(
+			    trace_ray_from_pixel(
+			      {X/Width, Y/Height}, Scene, Recursion_depth))} end,
+		lists:seq(0, Width - 1)) end,
+      lists:seq(0, Height - 1)).
+
+raytraced_pixel_list_concurrent(0, 0, _, _) ->
+    done;
+raytraced_pixel_list_concurrent(Width, Height, Scene, Recursion_depth)
   when Width > 0, Height > 0 ->
     Master_PID = spawn(raytracer, master, [self(), Width*Height]),
     lists:flatmap(
@@ -66,7 +90,7 @@ raytraced_pixel_list(Width, Height, Scene, Recursion_depth)
 	      lists:map(
 		fun(X) ->
 			% coordinates passed as a percentage
-			spawn(raytracer, trace_ray_from_pixel,
+			spawn(raytracer, worker,
 			  [Master_PID, X+Y*Width, {X/Width, Y/Height}, Scene, Recursion_depth]) end,
 		lists:seq(0, Width - 1)) end,
       lists:seq(0, Height - 1)),
@@ -81,6 +105,7 @@ master(Program_PID, Pixel_count) ->
 master(Program_PID, 0, Pixel_list) ->
     io:format("master is done~n", []),
     Program_PID ! lists:keysort(1, Pixel_list);
+% assumes all workers eventually return a good value
 master(Program_PID, Pixel_count, Pixel_list) ->
     receive
 	Pixel_tuple ->
@@ -89,8 +114,15 @@ master(Program_PID, Pixel_count, Pixel_list) ->
     
 
 % assumes X and Y are percentages of the screen dimensions
-trace_ray_from_pixel(Master_PID, Pixel_num, {X, Y}, [Camera|Rest_of_scene], Recursion_depth) ->
-    Master_PID ! {Pixel_num, colour_to_pixel(pixel_colour_from_ray(ray_through_pixel(X, Y, Camera), Rest_of_scene, Recursion_depth))}.
+worker(Master_PID, Pixel_num, {X, Y}, Scene, Recursion_depth) ->
+    Master_PID ! {Pixel_num,
+		  colour_to_pixel(trace_ray_from_pixel({X, Y}, Scene, Recursion_depth))}.
+
+trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene], Recursion_depth) ->
+    pixel_colour_from_ray(
+      ray_through_pixel(X, Y, Camera),
+      Rest_of_scene,
+      Recursion_depth).
 
 pixel_colour_from_ray(_Ray, _Scene, 0) ->
     #colour{r=0, g=0, b=0};
@@ -237,7 +269,6 @@ ray_sphere_intersect(
 	 x=Xd, y=Yd, z=Zd}},
   #sphere{radius=Radius, center=#vector{
 			   x=Xc, y=Yc, z=Zc}}) ->
-    Epsilon = 0.001,
     A = Xd*Xd + Yd*Yd + Zd*Zd,
     B = 2 * (Xd*(X0-Xc) + Yd*(Y0-Yc) + Zd*(Z0-Zc)),
     C = (X0-Xc)*(X0-Xc) + (Y0-Yc)*(Y0-Yc) + (Z0-Zc)*(Z0-Zc) - Radius*Radius,
@@ -257,7 +288,7 @@ ray_sphere_intersect(
 	    infinity
     end.
 
-ray_triangle_intersect(Ray, Triangle) ->
+ray_triangle_intersect(_Ray, _Triangle) ->
     infinity.
 
 focal_length(Angle, Dimension) ->
@@ -349,10 +380,6 @@ vector_bounce_off_plane(Vector, Normal) ->
 	2*vector_dot_product(Normal, vector_neg(Vector))),
       Vector).
 
-vector_rotate(V1, _V2) ->
-    %TODO: implement using quaternions
-    V1.
-
 object_diffuse_colour(#sphere{material=#material{colour=C}}) ->
     C;
 object_diffuse_colour(_Unknown) ->
@@ -442,21 +469,40 @@ write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
 	    io:format("error opening file~n", [])
     end.
 
-go() ->
-    go(16, 12, "/tmp/traced.ppm", 3).
-standalone_go() ->
-    {Time, _Value} = timer:tc(raytracer, go, [640, 480, "/tmp/traced.ppm", 10]),
+% various invocation style functions
+standalone_simple() ->
+    standalone(fun raytraced_pixel_list_simple/4).
+
+standalone_concurrent() ->
+    standalone(fun raytraced_pixel_list_concurrent/4).
+
+go_simple() ->
+    go(fun raytraced_pixel_list_simple/4).
+
+go_concurrent() ->
+    go(fun raytraced_pixel_list_concurrent/4).
+
+standalone(Function) ->
+    {Time, _Value} = timer:tc(
+		       raytracer,
+		       go,
+		       [Function]),
     io:format("Done in ~w seconds~n", [Time/1000000]),
     halt().
-go(Width, Height, Filename, Recursion_depth) ->
-    write_pixels_to_ppm(Width,
-			Height,
-			255,
-			raytraced_pixel_list(Width,
-					     Height,
-					     scene(),
-					    Recursion_depth),
-			Filename).
+
+go(Function) ->
+    go(4, 3, "/tmp/traced.ppm", 5, Function).
+go(Width, Height, Filename, Recursion_depth, Function) ->
+    write_pixels_to_ppm(
+      Width,
+      Height,
+      255,
+      Function(
+	Width,
+	Height,
+	scene(),
+	Recursion_depth),
+      Filename).
 
 % testing
 run_tests() ->
@@ -722,10 +768,6 @@ vector_negation_test() ->
     
     Subtest1 and Subtest2.
 
-ray_through_pixel_test() ->
-    io:format("ray through pixel test", []),
-    false.
-
 ray_shooting_test() ->
     io:format("ray shooting test"),
     Vector1 = #vector{x=0, y=0, z=0},
@@ -837,32 +879,6 @@ focal_length_test() ->
 						       Dimension, Size)))
       end, true,
       [{13, 108}, {15, 100.4}, {18, 90}, {21, 81.2}]).
-
-vector_rotation_test() ->
-    io:format("vector rotation test", []),
-    Vector1 = #vector{x=0, y=0, z=0},
-    Vector2 = #vector{x=0, y=1, z=0},
-    Vector3 = #vector{x=90, y=0, z=0},
-    Vector4 = #vector{x=45, y=0, z=0},
-    Vector5 = #vector{x=30.11, y=-988.2, z=92.231},
-    Vector6 = #vector{x=0, y=0, z=1},
-
-    Subtest1 = vectors_equal(
-		 vector_rotate(Vector1, Vector1),
-		 Vector1),
-    Subtest2 = vectors_equal(
-		 vector_rotate(Vector5, Vector1),
-		 Vector5),
-    Subtest3 = vectors_equal(
-		 vector_rotate(
-		   vector_rotate(Vector5, Vector4),
-		   Vector4),
-		 vector_rotate(Vector5, Vector3)),
-    Subtest4 = vectors_equal(
-		 Vector6,
-		 vector_rotate(Vector2, Vector3)),
-    
-    Subtest1 and Subtest2 and Subtest3 and Subtest4.
 
 object_normal_at_point_test() ->
     io:format("object normal at point test"),
