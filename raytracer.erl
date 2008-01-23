@@ -75,7 +75,7 @@ raytraced_pixel_list_simple(Width, Height, Scene, Recursion_depth)
 		fun(X) ->
 			% coordinates passed as a percentage
 			{1, colour_to_pixel(
-			    trace_ray_from_pixel(
+			    trace_ray_through_pixel(
 			      {X/Width, Y/Height}, Scene, Recursion_depth))} end,
 		lists:seq(0, Width - 1)) end,
       lists:seq(0, Height - 1)).
@@ -116,9 +116,9 @@ master(Program_PID, Pixel_count, Pixel_list) ->
 % assumes X and Y are percentages of the screen dimensions
 worker(Master_PID, Pixel_num, {X, Y}, Scene, Recursion_depth) ->
     Master_PID ! {Pixel_num,
-		  colour_to_pixel(trace_ray_from_pixel({X, Y}, Scene, Recursion_depth))}.
+		  colour_to_pixel(trace_ray_through_pixel({X, Y}, Scene, Recursion_depth))}.
 
-trace_ray_from_pixel({X, Y}, [Camera|Rest_of_scene], Recursion_depth) ->
+trace_ray_through_pixel({X, Y}, [Camera|Rest_of_scene], Recursion_depth) ->
     pixel_colour_from_ray(
       ray_through_pixel(X, Y, Camera),
       Rest_of_scene,
