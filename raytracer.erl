@@ -60,6 +60,7 @@
 -record(material, {colour, specular_power, shininess, reflectivity}).
 -record(sphere, {radius, center, material}).
 -record(triangle, {v1, v2, v3, material}).
+-record(plane, {normal, distance, material}).
 -record(point_light, {diffuse_colour, location, specular_colour}).
 -define(BACKGROUND_COLOUR, #colour{r=0, g=0, b=0}).
 -define(ERROR_COLOUR, #colour{r=1, g=0, b=0}).
@@ -255,13 +256,17 @@ ray_object_intersect(Ray, Object) ->
 	    ray_sphere_intersect(Ray, Object);
 	#triangle{} ->
 	    ray_triangle_intersect(Ray, Object);
+	#plane{} ->
+	    ray_plane_intersect(Ray, Object);
 	_Else ->
 	    infinity
     end.
 
 object_normal_at_point(#sphere{center=Center}, Point) ->
     vector_normalize(
-      vector_sub(Point, Center)).
+      vector_sub(Point, Center));
+object_normal_at_point(#plane{normal=Normal}, _Point) ->
+    Normal.
 
 ray_sphere_intersect(
   #ray{origin=#vector{
@@ -270,13 +275,14 @@ ray_sphere_intersect(
 	 x=Xd, y=Yd, z=Zd}},
   #sphere{radius=Radius, center=#vector{
 			   x=Xc, y=Yc, z=Zc}}) ->
+    Epsilon = 0.001,
     A = Xd*Xd + Yd*Yd + Zd*Zd,
     B = 2 * (Xd*(X0-Xc) + Yd*(Y0-Yc) + Zd*(Z0-Zc)),
     C = (X0-Xc)*(X0-Xc) + (Y0-Yc)*(Y0-Yc) + (Z0-Zc)*(Z0-Zc) - Radius*Radius,
     Discriminant = B*B - 4*A*C,
     %io:format("A=~w B=~w C=~w discriminant=~w~n",
 %	      [A, B, C, Discriminant]),
-    if Discriminant >= 0 ->
+    if Discriminant >= Epsilon ->
 	    T0 = (-B + math:sqrt(Discriminant))/2,
 	    T1 = (-B - math:sqrt(Discriminant))/2,
 	    if (T0 >= 0) and (T1 >= 0) ->
@@ -291,6 +297,23 @@ ray_sphere_intersect(
 
 ray_triangle_intersect(_Ray, _Triangle) ->
     infinity.
+
+ray_plane_intersect(Ray, Plane) ->
+    Epsilon = 0.001,
+    Vd = vector_dot_product(Plane#plane.normal, Ray#ray.direction),
+    if Vd < 0 ->
+	    V0 = -(vector_dot_product(Plane#plane.normal, Ray#ray.origin)
+		   + Plane#plane.distance),
+	    Distance = V0 / Vd,
+	    if Distance < Epsilon ->
+		    infinity;
+	       true ->
+		    Distance
+	    end;
+       true ->
+	    infinity
+    end.
+
 
 focal_length(Angle, Dimension) ->
     Dimension/(2*math:tan(Angle*(math:pi()/180)/2)).
@@ -383,13 +406,21 @@ vector_bounce_off_plane(Vector, Normal) ->
 
 object_diffuse_colour(#sphere{material=#material{colour=C}}) ->
     C;
-object_diffuse_colour(_Unknown) ->
-    ?UNKNOWN_COLOUR.
+object_diffuse_colour(#plane{material=#material{colour=C}}) ->
+    C.
 object_specular_power(#sphere{material=#material{specular_power=SP}}) ->
+    SP;
+object_specular_power(#plane{material=#material{specular_power=SP}}) ->
     SP.
+
 object_shininess(#sphere{material=#material{shininess=S}}) ->
+    S;
+object_shininess(#plane{material=#material{shininess=S}}) ->
     S.
+
 object_reflectivity(#sphere{material=#material{reflectivity=R}}) ->
+    R;
+object_reflectivity(#plane{material=#material{reflectivity=R}}) ->
     R.
 
 point_on_sphere(#sphere{radius=Radius, center=#vector{x=XC, y=YC, z=ZC}},
@@ -408,7 +439,7 @@ colour_to_pixel(#colour{r=R, g=G, b=B}) ->
 % returns a list of objects in the scene
 % camera is assumed to be the first element in the scene
 scene() ->
-    [#camera{location=#vector{x=0, y=0, z=0},
+    [#camera{location=#vector{x=0, y=0, z=-2},
 	     rotation=#vector{x=0, y=0, z=0},
 	     fov=90,
 	     screen=#screen{width=4, height=3}},
@@ -433,7 +464,7 @@ scene() ->
 	       shininess=0.25,
 	       reflectivity=0.5}},
      #sphere{radius=4,
-	     center=#vector{x=-5, y=-2, z=10},
+	     center=#vector{x=-4.5, y=-2.5, z=14},
 	     material=#material{
 	       colour=#colour{r=0.5, g=1, b=0},
 	       specular_power=20,
@@ -446,7 +477,14 @@ scene() ->
 		 colour=#colour{r=0.5, g=0, b=1},
 		 specular_power=40,
 		 shininess=1,
-		 reflectivity=1}}
+		 reflectivity=1}},
+     #plane{normal=#vector{x=0, y=-1, z=0},
+	    distance=5,
+	    material=#material{
+	      colour=#colour{r=1, g=1, b=1},
+	      specular_power=1,
+	      shininess=0,
+	      reflectivity=0.01}}
     ].
 
 
@@ -546,7 +584,7 @@ scene_test() ->
     io:format("testing the scene function", []),
     case scene() of
 	[{camera,
-	  {vector, 0, 0, 0},
+	  {vector, 0, 0, -2},
 	  {vector, 0, 0, 0},
 	  90,
 	  {screen, 4, 3}},
@@ -568,13 +606,17 @@ scene_test() ->
 	  {material, {colour, 1, 0.5, 0}, 4, 0.25, 0.5}},
 	 {sphere,
 	  4,
-	  {vector, -5, -2, 10},
+	  {vector, -4.5, -2.5, 14},
 	  {material, {colour, 0.5, 1, 0}, 20, 0.25, 0.7}},
 	 {triangle,
 	  {vector, 2, 1.5, 0},
 	  {vector, 2, 1.5, 10},
 	  {vector, -2, 1.5, 0},
-	  {material, {colour, 0.5, 0, 1}, 40, 1, 1}}
+	  {material, {colour, 0.5, 0, 1}, 40, 1, 1}},
+	 {plane,
+	  {vector, 0, -1, 0},
+	  5,
+	  {material, {colour, 1, 1, 1}, 1, 0, 0.01}}
 	] ->
 	    true;
 _Else ->
@@ -809,7 +851,7 @@ ray_sphere_intersection_test() ->
       origin=#vector{x=4, y=0, z=0},
       direction=#vector{x=0, y=0, z=1}},
     Subtest1 = ray_sphere_intersect(Ray1, Sphere) == 7.0,
-    Subtest2 = ray_sphere_intersect(Ray2, Sphere) == 10.0,
+    Subtest2 = ray_sphere_intersect(Ray2, Sphere) == infinity,
     Subtest3 = ray_sphere_intersect(Ray3, Sphere) == infinity,
     Subtest1 and Subtest2 and Subtest3.
 
