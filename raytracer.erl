@@ -19,8 +19,9 @@
 %%      along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 %%  Features:
-%%  * two object types:
+%%  * three object types:
 %%   * spheres
+%%   * planes
 %%   * triangles (not done)
 %%  * point lights
 %%  * shadows (not done)
@@ -33,7 +34,7 @@
 %%  * PPM output file format
 %%  * randomly generated scene (not done)
 %%  * useful test suite (working but not very friendly when fails)
-%%  * concurrent (utilizes all CPUs in a single computer) (not done)
+%%  * concurrent
 %%  * distributed (across multiple computers) (not done)
 
 
