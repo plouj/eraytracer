@@ -41,17 +41,13 @@
 -module(raytracer).
 -export([go/1,
 	 go/5,
-	 go_simple/0,
-	 go_concurrent/0,
-	 go_simple/4,
-	 go_concurrent/4,
+	 raytrace/1,
+	 raytrace/5,
 	 run_tests/0,
 	 master/2,
 	 worker/5,
-	 standalone_concurrent/0,
-	 standalone_simple/0,
-	 standalone_concurrent/1,
-	 standalone_simple/1,
+	 standalone/1,
+	 standalone/5,
 	 raytraced_pixel_list_simple/4,
 	 raytraced_pixel_list_concurrent/4
 	]).
@@ -475,52 +471,17 @@ write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
     end.
 
 % various invocation style functions
-standalone_simple() ->
-    standalone(fun raytraced_pixel_list_simple/4).
-
-standalone_simple([Width, Height, Filename, Recursion_depth]) ->
+standalone([Width, Height, Filename, Recursion_depth, Strategy]) ->
     standalone(list_to_integer(Width),
 	       list_to_integer(Height),
 	       Filename,
 	       list_to_integer(Recursion_depth),
-	       fun raytraced_pixel_list_simple/4).
-
-standalone_concurrent() ->
-    standalone(fun raytraced_pixel_list_concurrent/4).
-
-standalone_concurrent([Width, Height, Filename, Recursion_depth]) ->
-    standalone(list_to_integer(Width),
-	       list_to_integer(Height),
-	       Filename,
-	       list_to_integer(Recursion_depth),
-	       fun raytraced_pixel_list_concurrent/4).
-
-go_simple() ->
-    go(fun raytraced_pixel_list_simple/4).
-
-go_simple(Width, Height, Filename, Recursion_depth) ->
-    go(Width, Height, Filename, Recursion_depth,
-       fun raytraced_pixel_list_simple/4).
-
-go_concurrent() ->
-    go(fun raytraced_pixel_list_concurrent/4).
-
-go_concurrent(Width, Height, Filename, Recursion_depth) ->
-    go(Width, Height, Filename, Recursion_depth,
-       fun raytraced_pixel_list_concurrent/4).
-
-standalone(Function) ->
-    {Time, _Value} = timer:tc(
-		       raytracer,
-		       go,
-		       [Function]),
-    io:format("Done in ~w seconds~n", [Time/1000000]),
-    halt().
+	       tracing_function(list_to_atom(Strategy))).
 
 standalone(Width, Height, Filename, Recursion_depth, Function) ->
     {Time, _Value} = timer:tc(
 		       raytracer,
-		       go,
+		       raytrace,
 		       [Width,
 			Height,
 			Filename,
@@ -529,9 +490,21 @@ standalone(Width, Height, Filename, Recursion_depth, Function) ->
     io:format("Done in ~w seconds~n", [Time/1000000]),
     halt().
 
-go(Function) ->
-    go(4, 3, "/tmp/traced.ppm", 5, Function).
-go(Width, Height, Filename, Recursion_depth, Function) ->
+go(Strategy) ->
+    raytrace(tracing_function(Strategy)).
+
+go(Width, Height, Filename, Recursion_depth, Strategy) ->
+    raytrace(Width, Height, Filename, Recursion_depth,
+       tracing_function(Strategy)).
+
+tracing_function(simple) ->
+    fun raytraced_pixel_list_simple/4;
+tracing_function(concurrent) ->
+    fun raytraced_pixel_list_concurrent/4.
+
+raytrace(Function) ->
+    raytrace(4, 3, "/tmp/traced.ppm", 5, Function).
+raytrace(Width, Height, Filename, Recursion_depth, Function) ->
     write_pixels_to_ppm(
       Width,
       Height,
