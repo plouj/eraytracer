@@ -153,37 +153,67 @@ lighting_function(Ray, Object, Hit_location, Hit_normal, Scene,
 			location=Light_location,
 			specular_colour=Specular_colour},
 	   Final_colour) ->
+	      Reflection = vector_scalar_mult(
+			     colour_to_vector(		
+			       pixel_colour_from_ray(
+				 #ray{origin=Hit_location,
+				      direction=vector_bounce_off_plane(
+						  Ray#ray.direction, Hit_normal)},
+				 Scene,
+				 Recursion_depth-1)),
+			     object_reflectivity(Object)),
+	      Light_contribution = vector_add(
+				     diffuse_term(
+				       Object,
+				       Light_location,
+				       Hit_location,
+				       Hit_normal),
+				     specular_term(
+				       Ray#ray.direction,
+				       Light_location,
+				       Hit_location,
+				       Hit_normal,
+				       object_specular_power(Object),
+				       object_shininess(Object),
+				       Specular_colour)),
 	      vector_add(
-		vector_scalar_mult(
-		  colour_to_vector(		
-		    pixel_colour_from_ray(
-		      #ray{origin=Hit_location,
-			   direction=vector_bounce_off_plane(
-				       Ray#ray.direction, Hit_normal)},
-		      Scene,
-		     Recursion_depth-1)),
-		  object_reflectivity(Object)),		    
+		Final_colour,
 		vector_add(
-		  vector_component_mult(
-		    colour_to_vector(Light_colour),
-		    vector_add(
-		      diffuse_term(Object,
-				   Light_location,
-				   Hit_location,
-				   Hit_normal),
-		      specular_term(Ray#ray.direction,
-				    Light_location,
-				    Hit_location,
-				    Hit_normal,
-				    object_specular_power(Object),
-				    object_shininess(Object),
-				    Specular_colour))),
-		  Final_colour));
+		  Reflection,
+		  vector_scalar_mult(
+		    vector_component_mult(
+		      colour_to_vector(Light_colour),
+		      Light_contribution),
+		    shadow_factor(Light_location, Hit_location, Scene))));
 	  (_Not_a_point_light, Final_colour) ->
 	      Final_colour
       end,
       #vector{x=0, y=0, z=0},
       Scene).
+
+shadow_factor(Light_location, Hit_location, Scene) ->
+    Light_vector = vector_sub(Light_location, Hit_location),
+    Light_vector_length = vector_mag(Light_vector),
+    Light_direction = vector_normalize(Light_vector),
+    % start the ray a little bit farther to prevent artefacts due to unit precision limitations
+    Shadow_ray = #ray{origin=vector_add(
+			       Hit_location,
+			       vector_scalar_mult(
+				 Light_direction,
+				 0.001)),
+		      direction=Light_direction},
+    case nearest_object_intersecting_ray(Shadow_ray, Scene) of
+	{_Obj, Distance, _Loc, _Normal} ->
+	    if Distance == infinity ->
+		    1;
+	    Light_vector_length > Distance ->
+		    0;
+	       true ->
+		    1
+	    end;
+	none ->
+	    1
+    end.
 
 diffuse_term(Object, Light_location, Hit_location, Hit_normal) ->
     vector_scalar_mult(
