@@ -48,6 +48,7 @@
 	 run_tests/0,
 	 master/2,
 	 worker/5,
+	 distributed_worker/6,
 	 standalone/1,
 	 standalone/5,
 	 raytraced_pixel_list_simple/4,
@@ -114,21 +115,26 @@ raytraced_pixel_list_distributed(Width, Height, Scene, Recursion_depth)
     io:format("Pool master is ~p~n", [Pool_master]),
     io:format("Nodes are ~p~n", [pool:get_nodes()]),
     Master_PID = pool:pspawn(raytracer, master, [self(), Width*Height]),
-    lists:flatmap(
-      fun(Y) ->
-	      lists:map(
-		fun(X) ->
-			% coordinates passed as a percentage
-			pool:pspawn(raytracer, worker,
-			  [Master_PID, X+Y*Width, {X/Width, Y/Height}, Scene, Recursion_depth]) end,
-		lists:seq(0, Width - 1)) end,
-      lists:seq(0, Height - 1)),
+    Pixels = [{X, Y} || X <- lists:seq(0, Width-1), Y <- lists:seq(0, Height-1)],
+    distribute_work(Pixels, trunc(Width*Height/64), Master_PID, Width, Height, Scene,
+		    Recursion_depth),
     io:format("all workers have been spawned~n", []),
     receive
 	Final_pixel_list ->
 	    Final_pixel_list
-    end,
-    pool:stop().
+    end.
+
+distribute_work(Pixels, Pixels_per_worker, Master_PID, Width, Height, Scene,
+		Recursion_depth) when length(Pixels) > Pixels_per_worker ->
+    {To_work_on, The_rest} = lists:split(Pixels_per_worker, Pixels),
+    pool:pspawn(raytracer, distributed_worker,
+		[Master_PID, To_work_on, Width, Height, Scene, Recursion_depth]),
+    distribute_work(The_rest, Pixels_per_worker, Master_PID,
+			    Width, Height, Scene, Recursion_depth);
+distribute_work(Pixels, _Pixels_per_worker, Master_PID, Width, Height, Scene,
+		Recursion_depth) ->
+    pool:pspawn(raytracer, distributed_worker,
+		[Master_PID, Pixels, Width, Height, Scene, Recursion_depth]).
 
 master(Program_PID, Pixel_count) ->
     master(Program_PID, Pixel_count, []).
@@ -147,6 +153,17 @@ master(Program_PID, Pixel_count, Pixel_list) ->
 worker(Master_PID, Pixel_num, {X, Y}, Scene, Recursion_depth) ->
     Master_PID ! {Pixel_num,
 		  colour_to_pixel(trace_ray_through_pixel({X, Y}, Scene, Recursion_depth))}.
+
+distributed_worker(Master_PID, Pixels, Width, Height, Scene, Recursion_depth) ->
+    %io:format("~pworker doing ~p pixels=~p~n", [node(), length(Pixels), Pixels]),
+    lists:foreach(
+      fun({X, Y}) ->
+	      Master_PID ! {X+Y*Width,
+			    colour_to_pixel(
+			      trace_ray_through_pixel(
+				{X/Width, Y/Height}, Scene, Recursion_depth))}
+      end,
+      Pixels).
 
 trace_ray_through_pixel({X, Y}, [Camera|Rest_of_scene], Recursion_depth) ->
     pixel_colour_from_ray(
