@@ -51,7 +51,8 @@
 	 standalone/1,
 	 standalone/5,
 	 raytraced_pixel_list_simple/4,
-	 raytraced_pixel_list_concurrent/4
+	 raytraced_pixel_list_concurrent/4,
+	 raytraced_pixel_list_distributed/4
 	]).
 
 -record(vector, {x, y, z}).
@@ -103,6 +104,31 @@ raytraced_pixel_list_concurrent(Width, Height, Scene, Recursion_depth)
 	Final_pixel_list ->
 	    Final_pixel_list
     end.
+
+raytraced_pixel_list_distributed(0, 0, _, _) ->
+    done;
+raytraced_pixel_list_distributed(Width, Height, Scene, Recursion_depth)
+  when Width > 0, Height > 0 ->
+    io:format("distributed tracing~n", []),
+    Pool_master = pool:start(renderslave),
+    io:format("Pool master is ~p~n", [Pool_master]),
+    io:format("Nodes are ~p~n", [pool:get_nodes()]),
+    Master_PID = pool:pspawn(raytracer, master, [self(), Width*Height]),
+    lists:flatmap(
+      fun(Y) ->
+	      lists:map(
+		fun(X) ->
+			% coordinates passed as a percentage
+			pool:pspawn(raytracer, worker,
+			  [Master_PID, X+Y*Width, {X/Width, Y/Height}, Scene, Recursion_depth]) end,
+		lists:seq(0, Width - 1)) end,
+      lists:seq(0, Height - 1)),
+    io:format("all workers have been spawned~n", []),
+    receive
+	Final_pixel_list ->
+	    Final_pixel_list
+    end,
+    pool:stop().
 
 master(Program_PID, Pixel_count) ->
     master(Program_PID, Pixel_count, []).
@@ -570,7 +596,9 @@ go(Width, Height, Filename, Recursion_depth, Strategy) ->
 tracing_function(simple) ->
     fun raytraced_pixel_list_simple/4;
 tracing_function(concurrent) ->
-    fun raytraced_pixel_list_concurrent/4.
+    fun raytraced_pixel_list_concurrent/4;
+tracing_function(distributed) ->
+    fun raytraced_pixel_list_distributed/4.
 
 raytrace(Function) ->
     raytrace(4, 3, "/tmp/traced.ppm", 5, Function).
