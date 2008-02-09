@@ -35,8 +35,8 @@
 %%  * randomly generated scene (not done)
 %%  * useful test suite (working but not very friendly when fails)
 %%  * concurrent
-%%   * specify how many pixels to give to each process (not done)
-%%  * distributed (across multiple computers) (not done)
+%%   * specify how many pixels to give to each process
+%%  * distributed (across multiple computers)
 
 
 
