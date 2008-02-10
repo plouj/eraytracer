@@ -38,6 +38,19 @@
 %%   * specify how many pixels to give to each process
 %%  * distributed (across multiple computers)
 
+%% Instructions
+%% The simplest way to run this raytracer is through an Erlang shell with the go() function.
+%% At the very least, the go function expects one parameter,
+%%  which tells it how to run the raytracer:
+%% To execute in a simple, serial manner use:
+%% > raytracer:go(simple)
+%% To execute in a parallel manner (taking advantage of multiple CPUs available to the system) use:
+%% > raytracer:go(concurrent)
+%% To execute in a distributed manner use:
+%% > raytracer:go(distributed)
+%% For the last command to work you need to do some preparation of the nodes (computers) that will be running the raytracer. To same myself some time I'll assume that you know how to do that or can figure out how to do that by reading http://erlang.org/doc/getting_started/part_frame.html and then http://www.erlang.org/doc/man/pool.html .
+%% Read the rest of the code for additional parameters that the go() function takes
+%% See the example *.sh files for examples of standalone invocation
 
 
 -module(raytracer).
