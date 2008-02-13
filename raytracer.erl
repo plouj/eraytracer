@@ -203,6 +203,10 @@ pixel_colour_from_ray(Ray, Scene, Recursion_depth) ->
 	    ?ERROR_COLOUR
     end.
 
+% my own illumination formula
+% ideas were borrowed from:
+% http://www.devmaster.net/wiki/Lighting
+% http://svn.icculus.org/darkwar/trunk/base/shaders/light.frag?rev=1067&view=auto
 lighting_function(Ray, Object, Hit_location, Hit_normal, Scene,
 		  Recursion_depth) ->
     lists:foldl(
@@ -248,6 +252,9 @@ lighting_function(Ray, Object, Hit_location, Hit_normal, Scene,
       #vector{x=0, y=0, z=0},
       Scene).
 
+% returns 0 when the Hit_location is completely occluded from light
+% at Light_location
+% otherwise returns 1
 shadow_factor(Light_location, Hit_location, Scene) ->
     Light_vector = vector_sub(Light_location, Hit_location),
     Light_vector_length = vector_mag(Light_vector),
@@ -272,6 +279,9 @@ shadow_factor(Light_location, Hit_location, Scene) ->
 	    1
     end.
 
+% based on
+% http://www.devmaster.net/wiki/Lambert_diffuse_lighting
+% http://svn.icculus.org/darkwar/trunk/base/shaders/light.frag?rev=1067&view=auto
 diffuse_term(Object, Light_location, Hit_location, Hit_normal) ->
     vector_scalar_mult(
       colour_to_vector(object_diffuse_colour(Object)),
@@ -281,6 +291,10 @@ diffuse_term(Object, Light_location, Hit_location, Hit_normal) ->
 				      vector_sub(Light_location,
 						 Hit_location)))])).
 
+% based on
+% http://svn.icculus.org/darkwar/trunk/base/shaders/light.frag?rev=1067&view=auto
+% http://www.flipcode.com/archives/Raytracing_Topics_Techniques-Part_2_Phong_Mirrors_and_Shadows.shtml
+% http://www.devmaster.net/wiki/Phong_shading
 specular_term(EyeVector, Light_location, Hit_location, Hit_normal,
 	     Specular_power, Shininess, Specular_colour) ->
 	    vector_scalar_mult(
@@ -295,6 +309,7 @@ specular_term(EyeVector, Light_location, Hit_location, Hit_normal,
 				 vector_neg(EyeVector))),
 			     Hit_normal)]), Specular_power)).
 
+% object agnostic intersection function
 nearest_object_intersecting_ray(Ray, Scene) ->
     nearest_object_intersecting_ray(
       Ray, none, hitlocation, hitnormal, infinity, Scene).
@@ -338,6 +353,7 @@ nearest_object_intersecting_ray(Ray,
 					    Rest_of_scene)
     end.
 
+% object specific intersection function
 ray_object_intersect(Ray, Object) ->
     case Object of
 	#sphere{} ->
@@ -356,6 +372,9 @@ object_normal_at_point(#sphere{center=Center}, Point) ->
 object_normal_at_point(#plane{normal=Normal}, _Point) ->
     Normal.
 
+% based on
+% http://www.devmaster.net/articles/raytracing/
+% http://www.siggraph.org/education/materials/HyperGraph/raytrace/rtinter1.htm
 ray_sphere_intersect(
   #ray{origin=#vector{
 	 x=X0, y=Y0, z=Z0},
@@ -386,6 +405,10 @@ ray_sphere_intersect(
 ray_triangle_intersect(_Ray, _Triangle) ->
     infinity.
 
+% based on
+% http://www.siggraph.org/education/materials/HyperGraph/raytrace/rayplane_intersection.htm
+% http://www.cs.princeton.edu/courses/archive/fall00/cs426/lectures/raycast/sld017.htm
+% http://www.devmaster.net/articles/raytracing/
 ray_plane_intersect(Ray, Plane) ->
     Epsilon = 0.001,
     Vd = vector_dot_product(Plane#plane.normal, Ray#ray.direction),
