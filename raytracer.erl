@@ -508,6 +508,9 @@ vector_normalize(V) ->
 vector_neg(#vector{x=X, y=Y, z=Z}) ->
     #vector{x=-X, y=-Y, z=-Z}.
 
+% based on
+% http://www.siggraph.org/education/materials/HyperGraph/raytrace/rtreflec.htm
+% http://www.devmaster.net/articles/raytracing/
 vector_bounce_off_plane(Vector, Normal) ->
     vector_add(
       vector_scalar_mult(
