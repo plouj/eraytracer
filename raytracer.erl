@@ -370,7 +370,10 @@ object_normal_at_point(#sphere{center=Center}, Point) ->
     vector_normalize(
       vector_sub(Point, Center));
 object_normal_at_point(#plane{normal=Normal}, _Point) ->
-    Normal.
+    Normal;
+object_normal_at_point(#triangle{v1=V1,v2=V2}, _Point) ->
+    vector_normalize(
+      vector_cross_product(V1, V2)).
 
 % based on
 % http://www.devmaster.net/articles/raytracing/
@@ -402,8 +405,53 @@ ray_sphere_intersect(
 	    infinity
     end.
 
-ray_triangle_intersect(_Ray, _Triangle) ->
-    infinity.
+% based on
+% http://www.graphics.cornell.edu/pubs/1997/MT97.html
+% http://jgt.akpeters.com/papers/GuigueDevillers03/addendum.html
+ray_triangle_intersect(Ray, Triangle) ->
+    Epsilon = 0.000001,
+    
+    % find vectors for two edges sharing v1
+    Edge1 = vector_sub(Triangle#triangle.v2, Triangle#triangle.v1),
+    Edge2 = vector_sub(Triangle#triangle.v3, Triangle#triangle.v1),
+
+    % begin calculating determinant
+    P = vector_cross_product(Ray#ray.direction, Edge2),
+    Determinant = vector_dot_product(Edge1, P),
+
+    % negative determinant means the triangle is facing away
+    % from the ray
+    
+    if Determinant < Epsilon ->
+	    % for our purposes we ignore such triangles
+%%  	    io:format("ray is either behind or on the triangle: ~p~n", [Determinant]),
+	    infinity;
+       true ->
+	    % calculate the distance from v1 to ray origin
+	    T = vector_sub(Ray#ray.origin, Triangle#triangle.v1),
+
+	    % calculate the U parameter and test bounds
+	    U = vector_dot_product(T, P),
+	    if (U < 0) or (U > Determinant) ->
+%%  		    io:format("U is negative or greater than det: ~p~n", [U]),
+		    infinity;
+	       true ->
+		    % prepare to test the V parameter
+		    Q = vector_cross_product(T, Edge1),
+		    % calculate the V parameter and test bounds
+		    V = vector_dot_product(Ray#ray.direction, Q),
+		    if (V < 0) or (U+V > Determinant) ->
+%%  			    io:format("V less than 0.0 or U+V greater than det: ~p ~p~n",
+%%  				      [U, V]),
+			    infinity;
+		       true ->
+			    % calculate the distance to the
+			    % intersection point and return
+%%   			    io:format("found ray/triangle intersection ~n", []),
+			    vector_dot_product(Edge2, Q) / Determinant
+		    end
+	    end
+    end.
 
 % based on
 % http://www.siggraph.org/education/materials/HyperGraph/raytrace/rayplane_intersection.htm
@@ -521,20 +569,29 @@ vector_bounce_off_plane(Vector, Normal) ->
 object_diffuse_colour(#sphere{material=#material{colour=C}}) ->
     C;
 object_diffuse_colour(#plane{material=#material{colour=C}}) ->
+    C;
+object_diffuse_colour(#triangle{material=#material{colour=C}}) ->
     C.
+
 object_specular_power(#sphere{material=#material{specular_power=SP}}) ->
     SP;
 object_specular_power(#plane{material=#material{specular_power=SP}}) ->
+    SP;
+object_specular_power(#triangle{material=#material{specular_power=SP}}) ->
     SP.
 
 object_shininess(#sphere{material=#material{shininess=S}}) ->
     S;
 object_shininess(#plane{material=#material{shininess=S}}) ->
+    S;
+object_shininess(#triangle{material=#material{shininess=S}}) ->
     S.
 
 object_reflectivity(#sphere{material=#material{reflectivity=R}}) ->
     R;
 object_reflectivity(#plane{material=#material{reflectivity=R}}) ->
+    R;
+object_reflectivity(#triangle{material=#material{reflectivity=R}}) ->
     R.
 
 point_on_sphere(#sphere{radius=Radius, center=#vector{x=XC, y=YC, z=ZC}},
@@ -584,14 +641,14 @@ scene() ->
 	       specular_power=20,
 	       shininess=0.25,
 	       reflectivity=0.7}},
-     #triangle{v1=#vector{x=2, y=1.5, z=0},
-	       v2=#vector{x=2, y=1.5, z=10},
-	       v3=#vector{x=-2, y=1.5, z=0},
+     #triangle{v1=#vector{x=-2, y=5, z=5},
+	       v2=#vector{x=4, y=5, z=10},
+	       v3=#vector{x=4, y=-5, z=10},
 	       material=#material{
-		 colour=#colour{r=0.5, g=0, b=1},
-		 specular_power=40,
-		 shininess=1,
-		 reflectivity=1}},
+		 colour=#colour{r=1, g=0.5, b=0},
+		 specular_power=4,
+		 shininess=0.25,
+		 reflectivity=0.5}},
      #plane{normal=#vector{x=0, y=-1, z=0},
 	    distance=5,
 	    material=#material{
@@ -725,10 +782,10 @@ scene_test() ->
 	  {vector, -4.5, -2.5, 14},
 	  {material, {colour, 0.5, 1, 0}, 20, 0.25, 0.7}},
 	 {triangle,
-	  {vector, 2, 1.5, 0},
-	  {vector, 2, 1.5, 10},
-	  {vector, -2, 1.5, 0},
-	  {material, {colour, 0.5, 0, 1}, 40, 1, 1}},
+	  {vector, -2, 5, 5},
+	  {vector, 4, 5, 10},
+	  {vector, 4, -5, 10},
+	  {material, {colour, 1, 0.5, 0}, 4, 0.25, 0.5}},
 	 {plane,
 	  {vector, 0, -1, 0},
 	  5,
