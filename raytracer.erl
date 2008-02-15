@@ -80,7 +80,6 @@
 -record(plane, {normal, distance, material}).
 -record(point_light, {diffuse_colour, location, specular_colour}).
 -define(BACKGROUND_COLOUR, #colour{r=0, g=0, b=0}).
--define(ERROR_COLOUR, #colour{r=1, g=0, b=0}).
 -define(UNKNOWN_COLOUR, #colour{r=0, g=1, b=0}).
 -define(FOG_DISTANCE, 40).
 
@@ -197,10 +196,8 @@ pixel_colour_from_ray(Ray, Scene, Recursion_depth) ->
 						 Hit_normal,
 						 Scene,
 						 Recursion_depth));
-	none ->
-	    ?BACKGROUND_COLOUR;
 	_Else ->
-	    ?ERROR_COLOUR
+	    ?BACKGROUND_COLOUR
     end.
 
 % my own illumination formula
@@ -326,31 +323,36 @@ nearest_object_intersecting_ray(Ray,
 				Normal,
 				Distance,
 				[CurrentObject|Rest_of_scene]) ->
-    NewDistance = ray_object_intersect(Ray, CurrentObject),
-    %io:format("Distace=~w NewDistace=~w~n", [Distance, NewDistance]),
-    if (NewDistance /= infinity)
-       and ((Distance == infinity) or (Distance > NewDistance)) ->
-	    %io:format("another closer object found~n", []),
-	    New_hit_location =
-		vector_add(Ray#ray.origin,
-			   vector_scalar_mult(Ray#ray.direction, NewDistance)),
-	    New_normal = object_normal_at_point(
-			   CurrentObject, New_hit_location),
+    case ray_object_intersect(Ray, CurrentObject) of
+	{NewDistance, New_hit_location, New_normal} ->
+	    %io:format("Distace=~w NewDistace=~w~n", [Distance, NewDistance]),
+	    if (Distance == infinity) or (Distance > NewDistance) ->
+		    %io:format("another closer object found~n", []),
+		    nearest_object_intersecting_ray(
+		      Ray,
+		      CurrentObject,
+		      New_hit_location,
+		      New_normal,
+		      NewDistance,
+		      Rest_of_scene);
+	       true ->
+		    %io:format("no closer obj found~n", []),
+		    nearest_object_intersecting_ray(
+		      Ray,
+		      NearestObj,
+		      Hit_location,
+		      Normal,
+		      Distance,
+		      Rest_of_scene)
+	    end;
+	none ->
 	    nearest_object_intersecting_ray(
 	      Ray,
-	      CurrentObject,
-	      New_hit_location,
-	      New_normal,
-	      NewDistance,
-	      Rest_of_scene);
-       true ->
-	    %io:format("no closer obj found~n", []),
-	    nearest_object_intersecting_ray(Ray,
-					    NearestObj,
-					    Hit_location,
-					    Normal,
-					    Distance,
-					    Rest_of_scene)
+	      NearestObj,
+	      Hit_location,
+	      Normal,
+	      Distance,
+	      Rest_of_scene)
     end.
 
 % object specific intersection function
@@ -363,17 +365,8 @@ ray_object_intersect(Ray, Object) ->
 	#plane{} ->
 	    ray_plane_intersect(Ray, Object);
 	_Else ->
-	    infinity
+	    none
     end.
-
-object_normal_at_point(#sphere{center=Center}, Point) ->
-    vector_normalize(
-      vector_sub(Point, Center));
-object_normal_at_point(#plane{normal=Normal}, _Point) ->
-    Normal;
-object_normal_at_point(#triangle{v1=V1,v2=V2}, _Point) ->
-    vector_normalize(
-      vector_cross_product(V1, V2)).
 
 % based on
 % http://www.devmaster.net/articles/raytracing/
@@ -397,12 +390,20 @@ ray_sphere_intersect(
 	    T1 = (-B - math:sqrt(Discriminant))/2,
 	    if (T0 >= 0) and (T1 >= 0) ->
 		    %io:format("T0=~w T1=~w~n", [T0, T1]),
-		    lists:min([T0, T1]);
+		    Distance = lists:min([T0, T1]),
+		    Intersection = vector_add(
+				     #vector{x=X0, y=Y0, z=Z0},
+				     vector_scalar_mult(
+				        #vector{x=Xd, y=Yd, z=Zd}, Distance)),
+		    Normal = vector_normalize(
+			       vector_sub(Intersection,
+					  #vector{x=Xc, y=Yc, z=Zc})),
+		    {Distance, Intersection, Normal};
 	       true ->
-		    infinity
+		    none
 	    end;
        true ->
-	    infinity
+	    none
     end.
 
 % based on
@@ -425,7 +426,7 @@ ray_triangle_intersect(Ray, Triangle) ->
     if Determinant < Epsilon ->
 	    % for our purposes we ignore such triangles
 %%  	    io:format("ray is either behind or on the triangle: ~p~n", [Determinant]),
-	    infinity;
+	    none;
        true ->
 	    % calculate the distance from v1 to ray origin
 	    T = vector_sub(Ray#ray.origin, Triangle#triangle.v1),
@@ -434,7 +435,7 @@ ray_triangle_intersect(Ray, Triangle) ->
 	    U = vector_dot_product(T, P),
 	    if (U < 0) or (U > Determinant) ->
 %%  		    io:format("U is negative or greater than det: ~p~n", [U]),
-		    infinity;
+		    none;
 	       true ->
 		    % prepare to test the V parameter
 		    Q = vector_cross_product(T, Edge1),
@@ -443,12 +444,22 @@ ray_triangle_intersect(Ray, Triangle) ->
 		    if (V < 0) or (U+V > Determinant) ->
 %%  			    io:format("V less than 0.0 or U+V greater than det: ~p ~p~n",
 %%  				      [U, V]),
-			    infinity;
+			    none;
 		       true ->
 			    % calculate the distance to the
 			    % intersection point and return
 %%   			    io:format("found ray/triangle intersection ~n", []),
-			    vector_dot_product(Edge2, Q) / Determinant
+			    Distance = vector_dot_product(Edge2, Q) / Determinant,
+			    Intersection = vector_add(
+					     Ray#ray.origin,
+					     vector_scalar_mult(
+					       Ray#ray.direction,
+					       Distance)),
+			    Normal = vector_normalize(
+				       vector_sub(
+					 Triangle#triangle.v1,
+					 Triangle#triangle.v2)),
+			    {Distance, Intersection, Normal}
 		    end
 	    end
     end.
@@ -465,12 +476,17 @@ ray_plane_intersect(Ray, Plane) ->
 		   + Plane#plane.distance),
 	    Distance = V0 / Vd,
 	    if Distance < Epsilon ->
-		    infinity;
+		    none;
 	       true ->
-		    Distance
+		    Intersection = vector_add(
+				     Ray#ray.origin,
+				     vector_scalar_mult(
+				       Ray#ray.direction,
+				       Distance)),
+		    {Distance, Intersection, Plane#plane.normal}
 	    end;
        true ->
-	    infinity
+	    none
     end.
 
 
@@ -658,7 +674,6 @@ scene() ->
 	      reflectivity=0.01}}
     ].
 
-
 % assumes Pixels are ordered in a row by row fasion
 write_pixels_to_ppm(Width, Height, MaxValue, Pixels, Filename) ->
     case file:open(Filename, write) of
@@ -747,7 +762,6 @@ run_tests() ->
 	     fun nearest_object_intersecting_ray_test/0,
 	     fun focal_length_test/0,
 %	     fun vector_rotation_test/0,
-	     fun object_normal_at_point_test/0,
 	     fun vector_bounce_off_plane_test/0,
 	     fun ray_sphere_intersection_test/0
 	    ],
@@ -1106,45 +1120,6 @@ focal_length_test() ->
 						       Dimension, Size)))
       end, true,
       [{13, 108}, {15, 100.4}, {18, 90}, {21, 81.2}]).
-
-object_normal_at_point_test() ->
-    io:format("object normal at point test"),
-    Sphere1 = #sphere{radius=13.5,
-		      center=#vector{x=0, y=0, z=0},
-		      material=#material{
-			colour=#colour{r=0, g=0, b=0}}},
-    Point1 = #vector{x=13.5, y=0, z=0},
-    Point2 = #vector{x=0, y=13.5, z=0},
-    Point3 = #vector{x=0, y=0, z=13.5},
-    Point4 = vector_neg(Point1),
-    Point5 = vector_neg(Point2),
-    Point6 = vector_neg(Point3),
-    
-    % sphere object tests
-    Subtest1 = vectors_equal(
-		 vector_normalize(Point1),
-		 object_normal_at_point(Sphere1, Point1)),
-    Subtest2 = vectors_equal(
-		 vector_normalize(Point2),
-		 object_normal_at_point(Sphere1, Point2)),
-    Subtest3 = vectors_equal(
-		 vector_normalize(Point3),
-		 object_normal_at_point(Sphere1, Point3)),
-    Subtest4 = vectors_equal(
-		 vector_normalize(Point4),
-		 object_normal_at_point(Sphere1, Point4)),
-    Subtest5 = vectors_equal(
-		 vector_normalize(Point5),
-		 object_normal_at_point(Sphere1, Point5)),
-    Subtest6 = vectors_equal(
-		 vector_normalize(Point6),
-		 object_normal_at_point(Sphere1, Point6)),
-    Subtest7 = not vectors_equal(
-		 vector_normalize(Point1),
-		 object_normal_at_point(Sphere1, Point4)),
-    
-    Subtest1 and Subtest2 and Subtest3 and Subtest4 and Subtest5 and Subtest6
-	and Subtest7.
 
 vector_bounce_off_plane_test() ->
     io:format("vector reflect about normal", []),
