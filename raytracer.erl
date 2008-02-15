@@ -242,38 +242,27 @@ lighting_function(Ray, Object, Hit_location, Hit_normal, Scene,
 		    vector_component_mult(
 		      colour_to_vector(Light_colour),
 		      Light_contribution),
-		    shadow_factor(Light_location, Hit_location, Scene))));
+		    shadow_factor(Light_location, Hit_location, Object, Scene))));
 	  (_Not_a_point_light, Final_colour) ->
 	      Final_colour
       end,
       #vector{x=0, y=0, z=0},
       Scene).
 
-% returns 0 when the Hit_location is completely occluded from light
-% at Light_location
-% otherwise returns 1
-shadow_factor(Light_location, Hit_location, Scene) ->
-    Light_vector = vector_sub(Light_location, Hit_location),
+% returns 0 if Object is occluded from the light at Light_location, otherwise
+% returns 1 if light can see Object 
+shadow_factor(Light_location, Hit_location, Object, Scene) ->
+    Light_vector = vector_sub(Hit_location, Light_location),
     Light_vector_length = vector_mag(Light_vector),
     Light_direction = vector_normalize(Light_vector),
-    % start the ray a little bit farther to prevent artefacts due to unit precision limitations
-    Shadow_ray = #ray{origin=vector_add(
-			       Hit_location,
-			       vector_scalar_mult(
-				 Light_direction,
-				 0.001)),
+    Shadow_ray = #ray{origin=Light_location,
 		      direction=Light_direction},
     case nearest_object_intersecting_ray(Shadow_ray, Scene) of
-	{_Obj, Distance, _Loc, _Normal} ->
-	    if Distance == infinity ->
-		    1;
-	    Light_vector_length > Distance ->
-		    0;
-	       true ->
-		    1
-	    end;
-	none ->
-	    1
+	% this could match another copy of the same object
+	{Object, Distance, _Loc, _Normal} ->
+	    1;
+	_Else ->
+	    0
     end.
 
 % based on
