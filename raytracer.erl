@@ -253,13 +253,12 @@ lighting_function(Ray, Object, Hit_location, Hit_normal, Scene,
 % returns 1 if light can see Object 
 shadow_factor(Light_location, Hit_location, Object, Scene) ->
     Light_vector = vector_sub(Hit_location, Light_location),
-    Light_vector_length = vector_mag(Light_vector),
     Light_direction = vector_normalize(Light_vector),
     Shadow_ray = #ray{origin=Light_location,
 		      direction=Light_direction},
     case nearest_object_intersecting_ray(Shadow_ray, Scene) of
 	% this could match another copy of the same object
-	{Object, Distance, _Loc, _Normal} ->
+	{Object, _Distance, _Loc, _Normal} ->
 	    1;
 	_Else ->
 	    0
