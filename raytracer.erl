@@ -190,13 +190,14 @@ pixel_colour_from_ray(Ray, Scene, Recursion_depth) ->
 	{Nearest_object, _Distance, Hit_location, Hit_normal} ->
 	    %io:format("hit: ~w~n", [{Nearest_object, _Distance}]),
 
-	      vector_to_colour(lighting_function(
-				 Ray,
-				 Nearest_object,
-				 Hit_location,
-				 Hit_normal,
-				 Scene,
-				 Recursion_depth));
+	      vector_to_colour(
+		lighting_function(
+		  Ray,
+		  Nearest_object,
+		  Hit_location,
+		  Hit_normal,
+		  Scene,
+		  Recursion_depth));
 	_Else ->
 	    ?BACKGROUND_COLOUR
     end.
