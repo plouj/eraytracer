@@ -1037,9 +1037,10 @@ ray_sphere_intersection_test() ->
     Ray3 = #ray{
       origin=#vector{x=4, y=0, z=0},
       direction=#vector{x=0, y=0, z=1}},
-    Subtest1 = ray_sphere_intersect(Ray1, Sphere) == 7.0,
-    Subtest2 = ray_sphere_intersect(Ray2, Sphere) == infinity,
-    Subtest3 = ray_sphere_intersect(Ray3, Sphere) == infinity,
+    {Distance1, _Hit_location1, _Hit_normal1} = ray_sphere_intersect(Ray1, Sphere),
+    Subtest1 = Distance1 == 7.0, 
+    Subtest2 = ray_sphere_intersect(Ray2, Sphere) == none,
+    Subtest3 = ray_sphere_intersect(Ray3, Sphere) == none,
     Subtest1 and Subtest2 and Subtest3.
 
 point_on_screen_test() ->
