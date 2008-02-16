@@ -446,7 +446,7 @@ ray_triangle_intersect(Ray, Triangle) ->
 					       Ray#ray.direction,
 					       Distance)),
 			    Normal = vector_normalize(
-				       vector_sub(
+				       vector_cross_product(
 					 Triangle#triangle.v1,
 					 Triangle#triangle.v2)),
 			    {Distance, Intersection, Normal}
